@@ -1,0 +1,30 @@
+# Machine configuration, credentials, diagnostics, and local backups
+/adapter.config.json
+/adapter.config.local*.json
+/.env
+/.env.*
+!/.env.example
+/work/
+/logs/
+/local/
+*.log
+*.lnk
+*.pem
+*.key
+
+# Dependencies, generated launchers, deployment packages, and license cache
+/node_modules/
+/bin/
+/remote/*.exe
+/third_party/Node*-LICENSE.txt
+*.zip
+
+# Private compatibility entry point retained only on the original workstation
+/Launch-Codex-*.cmd
+!/Launch-Codex-Windows.cmd
+
+# Editor and operating-system files
+/.vscode/
+/.idea/
+.DS_Store
+Thumbs.db

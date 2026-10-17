@@ -1,0 +1,9 @@
+{
+  "aliases": [],
+  "autoDetectWindows": true,
+  "durableHost": true,
+  "realSsh": "C:\\Windows\\System32\\OpenSSH\\ssh.exe",
+  "remoteCodexCommand": "codex.cmd",
+  "maxMessageBytes": 16777216,
+  "testedAppVersion": "26.1013.4894.0"
+}

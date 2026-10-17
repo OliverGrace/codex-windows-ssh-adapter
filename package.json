@@ -1,0 +1,28 @@
+{
+  "name": "codex-windows-ssh-adapter",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Process-local SSH compatibility bridge for Codex Desktop and native Windows Codex hosts",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test tests/unit.test.mjs tests/bridge.test.mjs tests/durable.test.mjs tests/hosts.test.mjs",
+    "test:durable": "node tests/durable-integration.mjs",
+    "install:remote": "node scripts/install-remote.mjs",
+    "prepare:remote": "node scripts/prepare-package.mjs",
+    "setup:host": "node scripts/setup-host.mjs",
+    "build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1",
+    "doctor": "node scripts/doctor.mjs",
+    "test:integration": "node tests/integration.mjs",
+    "test:discovery": "node tests/discovery-integration.mjs",
+    "test:install": "node tests/install-generic.mjs",
+    "test:agent": "node tests/agent-smoke.mjs",
+    "test:agent-durable": "node tests/agent-durable.mjs",
+    "check:publication": "node scripts/check-publication.mjs"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
+  }
+}
