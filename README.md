@@ -158,7 +158,7 @@ To stop loading the local adapter, exit the App and launch its normal shortcut. 
 
 ## Development and validation
 
-`main` is the default publication branch; `dev` is the integration branch. Both exclude personal configuration and generated state. See [Contributing](CONTRIBUTING.md) for checks, opt-in live tests, and branch workflow.
+`main` is the default publication branch; `dev` stays local and is not pushed to GitHub. Both exclude personal configuration and generated state. See [Contributing](CONTRIBUTING.md) for checks, opt-in live tests, and branch workflow.
 
 ```powershell
 npm test

@@ -149,7 +149,7 @@ node scripts/remote.mjs start windows-dev
 
 ## 开发与验证
 
-`main` 是默认发布分支，`dev` 是开发集成分支，两者都不包含个人配置或运行状态。详见[中文贡献指南](CONTRIBUTING.zh-CN.md)。
+`main` 是默认发布分支，`dev` 仅保留在本地，不推送到 GitHub。两者都不包含个人配置或运行状态。详见[中文贡献指南](CONTRIBUTING.zh-CN.md)。
 
 ```powershell
 npm test

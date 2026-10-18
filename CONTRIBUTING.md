@@ -5,10 +5,10 @@
 ## Branches
 
 - `main`: default branch containing the reviewed, publishable baseline.
-- `dev`: integration branch for ongoing development.
-- Create feature/fix branches from `dev`, open pull requests into `dev`, then promote validated changes from `dev` to `main`.
+- `dev`: local development branch; do not push it to GitHub.
+- Develop locally on `dev`, review and sanitize the changes before promoting them to `main`, and push only `main`. External pull requests target `main`.
 
-Both branches are public. Keep local configuration, credentials, machine identifiers, and test output out of **all** commits. These roles are a workflow convention, not a server-side branch protection rule.
+Only `main` is published. Keep local configuration, credentials, machine identifiers, and test output out of **all** commits, including local development history. These roles are a workflow convention, not a server-side branch protection rule.
 
 ## Local checks
 
