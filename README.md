@@ -146,6 +146,7 @@ node scripts/remote.mjs start windows-dev
 | Version gate rejects Desktop | Review new App compatibility before changing the version setting. |
 | Host absent from SSH settings | Add a valid SSH config alias and verify system SSH access. |
 | Authentication or host-key failure | Fix the underlying SSH connection; checks are not bypassed. |
+| SSH login works, but Windows detection fails or PowerShell returns `Access is denied` | Check antivirus/endpoint protection block history on the remote host; see below. |
 | CLI not found | Run Codex under the SSH user or set remote `CODEX_CLI_PATH`. |
 | First connection times out | Run `npm run install:remote -- windows-dev`, then reconnect. |
 | Task registration fails | Check Task Scheduler permissions; Interactive fallback needs a signed-in user. |
@@ -153,6 +154,32 @@ node scripts/remote.mjs start windows-dev
 | Agent shell differs from terminal tab | The agent uses CLI shell settings; an App terminal may start Windows PowerShell. Run `pwsh` there if desired. |
 
 Local `logs/adapter.jsonl` records operation metadata, not prompts or credential values. Ignored `work/` contains caches, fixtures, and reports that may include machine names and paths. Review and redact diagnostic output before sharing.
+
+### Antivirus and endpoint protection
+
+Security software can block an adapter subprocess even when SSH login itself succeeds. In one deployment using 360 security software, `ssh ... hostname` worked while remote `powershell.exe` returned `Access is denied`. Host detection then reported `Cannot identify this SSH host as Windows or Unix`. After the blocked operation was allowed, Desktop reattached to the existing Codex process and disconnect/MCP tests passed. This is a diagnostic example, not proof that every access-denied error is caused by antivirus.
+
+The adapter uses Windows PowerShell (`powershell.exe`) for discovery, task management, and MCP listener checks. A working PowerShell 7 (`pwsh.exe`) agent shell does not establish that these adapter operations are allowed.
+
+1. Compare a basic SSH command with a harmless Windows PowerShell command from the local computer:
+
+   ```powershell
+   & "$env:WINDIR\System32\OpenSSH\ssh.exe" -o BatchMode=yes windows-dev hostname
+   & "$env:WINDIR\System32\OpenSSH\ssh.exe" -o BatchMode=yes windows-dev 'powershell.exe -NoProfile -NonInteractive -Command "Write-Output ADAPTER_POWERSHELL_OK"'
+   ```
+
+2. Check protection history and quarantine on the computer where the operation failed. Match the time, executable, command, and parent process to the adapter. Relevant components include the local project `bin\ssh.exe` and Node runtime, and the remote PowerShell executable, native Codex CLI, and files under `%LOCALAPPDATA%\CodexWindowsSshAdapter` (host/proxy launchers, scripts, and the private Node runtime for newer installations).
+
+3. If the block is confirmed and the files are trusted, restore any quarantined adapter file and allow the specific adapter operation using the security product's controls. Keep protection enabled; avoid whole-drive exclusions or blanket permission for all PowerShell commands. On a managed computer, ask its administrator to review the block.
+
+4. Recheck the host and reconnect in Desktop:
+
+   ```powershell
+   node scripts/setup-host.mjs --check windows-dev
+   node scripts/remote.mjs status windows-dev
+   ```
+
+   If the host is stopped, use `node scripts/remote.mjs start windows-dev`. A block does not necessarily stop existing Codex processes; check before reinstalling or stopping the service. If the App cached an MCP failure, fully exit it and reopen with `Launch-Codex-Windows.cmd`, then reconnect. If protection history shows no matching block, continue checking executable permissions, SSH policy, and service status.
 
 To stop loading the local adapter, exit the App and launch its normal shortcut. The remote task remains running. To uninstall remotely, finish active work, stop the adapter, remove its scheduled task, and remove only `%LOCALAPPDATA%\CodexWindowsSshAdapter`. Keep the original `.codex` directory.
 

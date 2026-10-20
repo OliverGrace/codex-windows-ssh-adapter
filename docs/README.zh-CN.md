@@ -137,6 +137,7 @@ node scripts/remote.mjs start windows-dev
 | App 版本不匹配 | 验证新版兼容性后再修改版本配置。 |
 | SSH 设置中没有主机 | 添加 SSH 别名，确认系统 SSH 可用。 |
 | 认证或主机密钥错误 | 修复原始 SSH 连接；检查不会被绕过。 |
+| SSH 登录正常，但 Windows 检测失败，或 PowerShell 提示“拒绝访问” | 检查远端杀毒软件或终端防护的拦截记录，详见下文。 |
 | 找不到 CLI | 使用 SSH 用户运行 Codex，或设置远端 `CODEX_CLI_PATH`。 |
 | 首次连接超时 | 先执行 `npm run install:remote -- windows-dev`。 |
 | 无法注册任务 | 检查任务计划权限；Interactive 模式要求用户保持登录。 |
@@ -144,6 +145,32 @@ node scripts/remote.mjs start windows-dev
 | Agent 和终端 Shell 不同 | Agent 沿用 CLI 设置；终端可能先启动 Windows PowerShell，可输入 `pwsh`。 |
 
 `logs/adapter.jsonl` 记录操作元数据，不记录提示词或凭据值。被忽略的 `work/` 中有缓存、测试文件及报告，可能含机器名和路径；分享诊断输出前请审查并脱敏。
+
+### 杀毒软件与终端防护
+
+安全软件可能拦截适配器的子进程，即使 SSH 登录本身正常。一次使用 360 安全软件的部署中，`ssh ... hostname` 可以执行，远端 `powershell.exe` 却返回“拒绝访问”，导致主机检测提示 `Cannot identify this SSH host as Windows or Unix`。放行被拦截的操作后，App 重新连接到原有 Codex 进程，断线和 MCP 测试通过。这是排查案例，不代表所有“拒绝访问”都由杀毒软件引起。
+
+适配器使用 Windows PowerShell（`powershell.exe`）进行主机检测、计划任务管理和 MCP 监听检查。Agent 的 PowerShell 7（`pwsh.exe`）可以正常运行，并不代表这些适配器操作也已获准执行。
+
+1. 在本机分别测试基础 SSH 命令和无副作用的 Windows PowerShell 命令：
+
+   ```powershell
+   & "$env:WINDIR\System32\OpenSSH\ssh.exe" -o BatchMode=yes windows-dev hostname
+   & "$env:WINDIR\System32\OpenSSH\ssh.exe" -o BatchMode=yes windows-dev 'powershell.exe -NoProfile -NonInteractive -Command "Write-Output ADAPTER_POWERSHELL_OK"'
+   ```
+
+2. 在发生失败的电脑上检查防护历史和隔离区，核对时间、程序、命令及父进程是否属于适配器。相关组件包括本机项目的 `bin\ssh.exe` 和 Node 运行时，以及远端 PowerShell、原生 Codex CLI 和 `%LOCALAPPDATA%\CodexWindowsSshAdapter` 内的文件（宿主/代理启动器、脚本，以及较新安装中的私有 Node 运行时）。
+
+3. 确认是拦截且文件可信后，恢复被隔离的适配器文件，并通过安全软件提供的控制项放行具体的适配器操作。保持防护开启，避免排除整个磁盘或无条件放行所有 PowerShell 命令；受管理的电脑应由管理员审查拦截。
+
+4. 重新检查主机，再到 App 连接：
+
+   ```powershell
+   node scripts/setup-host.mjs --check windows-dev
+   node scripts/remote.mjs status windows-dev
+   ```
+
+   如果宿主已停止，执行 `node scripts/remote.mjs start windows-dev`。拦截不一定会结束已有 Codex 进程，重装或停止服务前先检查状态。若 App 缓存了 MCP 失败状态，完整退出后用 `Launch-Codex-Windows.cmd` 重新启动并连接。如果没有对应拦截记录，继续检查程序权限、SSH 策略和服务状态。
 
 回退时退出 App，再用普通快捷方式启动，即可停止加载本地适配器，远端任务仍保留。完全卸载远端适配器前，先结束工作、停止宿主，再删除其计划任务及 `%LOCALAPPDATA%\CodexWindowsSshAdapter`，保留原来的 `.codex` 目录。
 
