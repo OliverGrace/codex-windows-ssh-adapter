@@ -4,7 +4,7 @@
 
 Connect Codex Desktop's **Settings → Connections → SSH** to a native Windows Codex CLI. Use one local launcher for your Windows SSH hosts, keep remote processes running across SSH disconnects, and forward Desktop MCP tools through the existing SSH tunnel.
 
-**Experimental, unofficial compatibility adapter.** Tested against Desktop `26.1013.4894.0` and CLI `0.162.0`. Desktop protocol changes may require adapter changes; the launcher checks the installed App version before starting it.
+**Experimental, unofficial compatibility adapter.** The default version gate targets Desktop `26.1021.3705.0`; the compatibility helper also retains support for the previously tested `26.1013.4894.0`. CLI `0.162.0` and `0.163.0` have been tested. Desktop protocol changes may require adapter changes; the launcher checks the installed App version before starting it.
 
 ## Features
 
@@ -12,6 +12,7 @@ Connect Codex Desktop's **Settings → Connections → SSH** to a native Windows
 - Uses existing SSH aliases, keys, ports, `Include`, `ProxyJump`, and `ProxyCommand` settings.
 - Deploys a private runtime and a per-user scheduled task on first connection; reuses compatible existing installations.
 - Keeps native Codex and its terminal child processes alive when SSH disconnects. The same client identity reattaches to its existing session.
+- Separates durable client identities by local installation and SSH target so different computers do not repeatedly take over each other's sessions.
 - Preserves native Windows execution and the remote CLI's existing PowerShell configuration.
 - Adapts Desktop's MCP reverse-forward listener check to Windows while preserving loopback binding and authentication.
 - Passes ordinary SSH commands and detected Unix hosts to system OpenSSH.
@@ -88,6 +89,7 @@ node scripts/remote.mjs status windows-dev
 | `remoteCodexCommand` | Legacy command name; automatic discovery finds the native CLI. |
 | `maxMessageBytes` | Local bridge message limit, default 16 MiB. |
 | `testedAppVersion` | Desktop version gate. Run compatibility checks before changing it. |
+| `clientId` | Optional nonempty installation identifier. Defaults to the local machine name and checkout path; combined with the SSH target and original client name before hashing. Use different values on different computers. |
 
 The launcher sets `CODEX_WINDOWS_SSH_AUTO=1` for its App process. CLI discovery covers common npm installations, executable paths, `.local\bin`, and WinGet links. For a custom installation, set **remote** `CODEX_CLI_PATH` to the real `codex.exe`, visible to the SSH login environment.
 
@@ -105,6 +107,8 @@ flowchart LR
 ```
 
 The scheduled host owns Codex's stdio; SSH only attaches and detaches a proxy. The host coordinates initialization, request IDs, approvals, and buffered notifications. A connection with the same client identity takes over that identity's session. Up to 12 identities are retained, with a 32 MiB offline notification buffer per session.
+
+The local bridge adds a stable hashed suffix to the initialization client name. Reconnecting from the same installation and SSH alias reuses that session; another installation or alias uses a separate session. Other initialization fields and request IDs are preserved. Changing the checkout path, machine name, SSH alias, or `clientId` selects a new identity. To keep an identity across future directory moves, configure a unique `clientId` before establishing it. The first connection after this fix creates a separate session; existing remote processes are left running. The fix works with existing `0.2.0` and `0.3.0` hosts without restarting or replacing them.
 
 The remote task is named `CodexWindowsSshAdapter`. Files live in `%LOCALAPPDATA%\CodexWindowsSshAdapter`, restricted to the Windows user and SYSTEM. A random token authenticates a dynamically allocated loopback WebSocket; the token stays remote. No LAN listener or firewall exception is created.
 
@@ -149,11 +153,18 @@ node scripts/remote.mjs start windows-dev
 | SSH login works, but Windows detection fails or PowerShell returns `Access is denied` | Check antivirus/endpoint protection block history on the remote host; see below. |
 | CLI not found | Run Codex under the SSH user or set remote `CODEX_CLI_PATH`. |
 | First connection times out | Run `npm run install:remote -- windows-dev`, then reconnect. |
+| Repeated `websocket closed (code=1006)` with `Durable host closed: 1012 Reattached` in Desktop logs | Another connection is taking over the same identity. Update the local adapter, reconnect, and check that different computers do not share an explicit `clientId`. |
 | Task registration fails | Check Task Scheduler permissions; Interactive fallback needs a signed-in user. |
 | MCP unavailable | Check SSH reverse forwarding policy; fully restart the local App if it cached an earlier failure. |
 | Agent shell differs from terminal tab | The agent uses CLI shell settings; an App terminal may start Windows PowerShell. Run `pwsh` there if desired. |
 
 Local `logs/adapter.jsonl` records operation metadata, not prompts or credential values. Ignored `work/` contains caches, fixtures, and reports that may include machine names and paths. Review and redact diagnostic output before sharing.
+
+### Repeated reconnects over a VPN
+
+`1006` alone does not identify a network fault. Check the Desktop SSH proxy failure log for the underlying close reason. `1012 Reattached` is generated by the durable host when a new connection uses an existing client identity; repeated reconnects can make two clients evict each other. Older adapters used the same `Codex Desktop` identity across computers. The local identity suffix fixes that collision without changing VPN routes, SSH forwarding policy, or the remote scheduled task.
+
+For Tailscale connections, first verify DNS resolution and system SSH access; `tailscale ping windows-dev` can distinguish a direct path from a relay. Successful SSH authentication and reverse forwarding followed by `1012 Reattached` point to session ownership, not a reason to disable Tailscale or open extra ports. Check `node scripts/remote.mjs status windows-dev` and the local Desktop connection log after reconnecting. If the close reason differs, investigate that error separately.
 
 ### Antivirus and endpoint protection
 
@@ -193,9 +204,9 @@ git add .
 npm run check:publication
 ```
 
-The default suite runs 12 local tests without Desktop, SSH credentials, or a model account. CI also compiles Windows launchers. Publication checks inspect the Git index for prohibited files and common sensitive patterns; review the staged diff as well.
+The default suite runs 14 local tests without Desktop, SSH credentials, or a model account, including separate Desktop identities and reconnect ownership. CI also compiles Windows launchers. Publication checks inspect the Git index for prohibited files and common sensitive patterns; review the staged diff as well.
 
-Prior live validation covered one native Windows host, an unlisted SSH route to that same host, a fresh isolated `0.3.0` installation, PowerShell execution, forced disconnect/reconnect, and authenticated MCP before and after reconnection. A real ephemeral agent completed a command during an SSH outage. These are historical results, not tests repeated by every CI run. A second physical host, ARM64, and a standard non-admin account have not been validated. Unix routing has local coverage, not a completed live Linux acceptance test.
+Prior live validation covered one native Windows host, an unlisted SSH route to that same host, a fresh isolated `0.3.0` installation, PowerShell execution, forced disconnect/reconnect, and authenticated MCP before and after reconnection. A real ephemeral agent completed a command during an SSH outage. The October 2026 update additionally verified Desktop connections to two Windows hosts over Tailscale and recovery from a competing client's session takeover. These are observed results, not tests repeated by every CI run or a long-duration reliability guarantee. ARM64 and a standard non-admin account have not been validated. Unix routing has local coverage, not a completed live Linux acceptance test.
 
 ## Repository layout
 

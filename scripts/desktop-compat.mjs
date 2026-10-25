@@ -13,18 +13,34 @@ export function inspectDesktop() {
     const entries=JSON.parse(header).files['.vite'].files.build.files;
     const name=Object.keys(entries).find(n=>/^main-.*\.js$/.test(n));
     if(!name)throw new Error('Desktop main bundle not found');
-    const entry=entries[name], content=Buffer.alloc(Number(entry.size));
-    fs.readSync(fd,content,0,content.length,8+b.readUInt32LE(4)+Number(entry.offset));
-    const source=content.toString('utf8');
-    const start=source.indexOf('function aS('), end=source.indexOf('function oS(',start);
-    if(start<0||end<start||end-start>5000||!source.includes('app-server proxy')||!source.includes('CODEX_SSH_SKIP_APP_SERVER_BOOT'))throw new Error('Desktop command layout changed; review adapter before activation');
+    const readEntry=name=>{
+      const entry=entries[name], content=Buffer.alloc(Number(entry.size));
+      fs.readSync(fd,content,0,content.length,8+b.readUInt32LE(4)+Number(entry.offset));
+      return content.toString('utf8');
+    };
+    const main=readEntry(name);
+    let source=main, first='aS', next='oS';
+    let names={quote:'iS',octal:'jme',path:'Eme',home:'Dme'};
+    // This reviewed release moved the same pure shell formatter into bootstrap.
+    // Keep the version guard: future minifier names must not select unrelated code.
+    if(pkg.Version==='26.1021.3705.0') {
+      const bootstrap=/require\("\.\/(bootstrap-[^"/]+\.js)"\)/.exec(main)?.[1];
+      if(!bootstrap||!entries[bootstrap])throw new Error('Desktop bootstrap bundle not found');
+      source=readEntry(bootstrap); first='nO'; next='rO';
+      names={quote:'tO',octal:'cO',path:'$D',home:'eO'};
+      if(!source.includes('exports.gt=nO')||!main.includes('_.gt(i,a)'))throw new Error('Desktop SSH formatter call changed');
+    } else if(pkg.Version!=='26.1013.4894.0') {
+      throw new Error('Desktop version has not been reviewed: '+pkg.Version);
+    }
+    const start=source.indexOf('function '+first+'('), end=source.indexOf('function '+next+'(',start);
+    if(start<0||end<start||end-start>5000||!main.includes('app-server proxy')||!main.includes('CODEX_SSH_SKIP_APP_SERVER_BOOT')||!source.slice(start,end).includes('CODEX_REMOTE_PAYLOAD'))throw new Error('Desktop command layout changed; review adapter before activation');
     // Only the small, pure command-formatting function from the installed, trusted
     // desktop package runs here. No state or application startup code is evaluated.
     const shellQuote=e=>`'${e.replaceAll("'","'\\''")}'`;
-    const wrap=vm.runInNewContext(source.slice(start,end)+'; aS',{
-      iS:shellQuote,jme:e=>Array.from(e,b=>'\\'+b.toString(8).padStart(3,'0')).join(''),
-      Eme:'PATH="${CODEX_INSTALL_DIR:-$HOME/.local/bin}:$PATH"; export PATH',
-      Dme:'CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"; export CODEX_HOME'
+    const wrap=vm.runInNewContext(source.slice(start,end)+'; '+first,{
+      [names.quote]:shellQuote,[names.octal]:e=>Array.from(e,b=>'\\'+b.toString(8).padStart(3,'0')).join(''),
+      [names.path]:'PATH="${CODEX_INSTALL_DIR:-$HOME/.local/bin}:$PATH"; export PATH',
+      [names.home]:'CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"; export CODEX_HOME'
     },{timeout:1000});
     return {version:pkg.Version,installLocation:pkg.InstallLocation,wrap};
   } finally {fs.closeSync(fd);}

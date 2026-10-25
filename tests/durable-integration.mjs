@@ -10,6 +10,7 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {pipeClient,proxyCommand} from './helpers.mjs';
 import {inspectDesktop} from '../scripts/desktop-compat.mjs';
+import {clientScope,scopedClientName} from '../src/client-identity.mjs';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url))),cfg=JSON.parse(fs.readFileSync(path.join(root,'adapter.config.json')));
 const desktop=inspectDesktop(),exe=path.join(root,'bin','ssh.exe'),token=crypto.randomBytes(24).toString('hex');
 const report={time:new Date().toISOString(),checks:[]};
@@ -38,7 +39,8 @@ function status(){return JSON.parse(execFileSync(cfg.realSsh,['-T','-o','BatchMo
 let c,threadId,processId,doneFile,temp;
 try {
   c=await connect();temp=await remoteTemp(c);pass('MCP loopback forward accepted by Windows listener verification');
-  const initial=status(),session=initial.sessions.find(s=>s.name==='codex_adapter_durable_test');assert.ok(session?.pid);
+  const expectedName=scopedClientName('codex_adapter_durable_test',clientScope(cfg,root,liveHost));
+  const initial=status(),session=initial.sessions.find(s=>s.name===expectedName);assert.ok(session?.pid);
   const unique=crypto.randomUUID();processId='durable-'+unique;doneFile=path.win32.join(temp,'codex-durable-'+unique+'.txt');
   const command=`[Console]::WriteLine('DURABLE_READY'); $line=[Console]::ReadLine(); Start-Sleep -Seconds 4; [IO.File]::WriteAllText('${doneFile.replaceAll("'","''")}',$line); [Console]::WriteLine('DURABLE_FINISHED')`;
   c.rpc('command/exec',{processId,streamStdin:true,streamStdoutStderr:true,command:['pwsh.exe','-NoProfile','-Command',command],timeoutMs:60000},65000).catch(()=>{});

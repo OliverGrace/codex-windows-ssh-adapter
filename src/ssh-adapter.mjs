@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { parseSshArgs, classifyCommand, remoteCommand, desktopForwardPort } from './commands.mjs';
 import { serveBridge } from './bridge.mjs';
 import {detectHost,ensureHost} from './hosts.mjs';
+import {clientScope} from './client-identity.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const config = JSON.parse(fs.readFileSync(path.join(root, 'adapter.config.json'), 'utf8'));
@@ -61,6 +62,7 @@ try {
       if(mcpPort)log('desktop_mcp_forward',{port:mcpPort});
       process.stdout.write(command.marker);
       serveBridge({ input: process.stdin, output: process.stdout, maxMessageBytes: config.maxMessageBytes,
+        clientScope: activeConfig.durableHost ? clientScope(config, root, parsed.host) : '',
         startChild() { const p = spawnRemote(parsed.prefix, 'proxy',mcpPort); p.stderr.pipe(process.stderr); return p; }, onFinish: end, log });
     } else {
       const p = spawnRemote(parsed.prefix, command.operation);

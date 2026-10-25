@@ -1,9 +1,10 @@
 import http from 'node:http';
 import { Duplex } from 'node:stream';
 import { WebSocketServer, WebSocket } from 'ws';
+import { scopedClientName } from './client-identity.mjs';
 
 // A WebSocket endpoint over process pipes, never a network listener.
-export function serveBridge({ input, output, startChild, maxMessageBytes = 16 * 1024 * 1024, onFinish = () => {}, log = () => {} }) {
+export function serveBridge({ input, output, startChild, clientScope = '', maxMessageBytes = 16 * 1024 * 1024, onFinish = () => {}, log = () => {} }) {
   let child, ws, finished = false, upgraded = false, exitTimer, stdoutBuffer = Buffer.alloc(0), upstreamEnded = false;
   const socket = new Duplex({
     read() { input.resume(); },
@@ -70,7 +71,10 @@ export function serveBridge({ input, output, startChild, maxMessageBytes = 16 * 
         let message;
         try { message = JSON.parse(data.toString('utf8')); } catch { fail('Client message is not JSON'); return; }
         if (message === null || typeof message !== 'object' || Array.isArray(message)) { fail('Expected JSON-RPC object'); return; }
-        // Preserve method, IDs, parameters and Windows paths without rewriting.
+        // Scope only the durable identity; preserve request IDs and all other data.
+        if (clientScope && message.method === 'initialize' && typeof message.params?.clientInfo?.name === 'string') {
+          message.params.clientInfo.name = scopedClientName(message.params.clientInfo.name, clientScope);
+        }
         if (!child.stdin.write(JSON.stringify(message) + '\n')) { ws.pause(); child.stdin.once('drain', () => { if (!finished) ws.resume(); }); }
       });
     });

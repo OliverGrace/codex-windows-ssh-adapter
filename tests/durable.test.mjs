@@ -7,6 +7,7 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
 import {WebSocket} from 'ws';
+import {scopedClientName} from '../src/client-identity.mjs';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn){for(let i=0;i<100;i++){if(fn())return;await sleep(30);}throw Error('Timeout');}
 test('durable host authenticates, preserves sessions, replays approvals and isolates request IDs',{timeout:15000},async()=>{
@@ -33,6 +34,14 @@ test('durable host authenticates, preserves sessions, replays approvals and isol
     a.send({id:'approval-1',result:{decision:'decline'}});await until(()=>a.messages.some(m=>m.method==='test/approval'));
     const b=await connect('separate_test');assert.notEqual(b.init.pid,pid);await b.close();
     const taken=await connect();assert.equal(taken.init.pid,pid);await until(()=>a.ws.readyState===WebSocket.CLOSED);await taken.close();
+    const leftName=scopedClientName('Codex Desktop','installation-left/target');
+    const left=await connect(leftName), right=await connect(scopedClientName('Codex Desktop','installation-right/target'));
+    assert.notEqual(left.init.pid,right.init.pid);
+    assert.equal(left.ws.readyState,WebSocket.OPEN,'another Desktop must not evict this installation');
+    const resumed=await connect(leftName);assert.equal(resumed.init.pid,left.init.pid);
+    await until(()=>left.ws.readyState===WebSocket.CLOSED);
+    assert.equal(right.ws.readyState,WebSocket.OPEN,'reconnecting one installation must preserve the other');
+    await resumed.close();await right.close();
   } finally {
     for(const ws of clients)ws.terminate();child.kill();await closed;
     fs.rmSync(dir,{recursive:true,force:true});

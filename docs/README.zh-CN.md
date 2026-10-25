@@ -4,7 +4,7 @@
 
 让 Codex Desktop 的 **设置 → 连接 → SSH** 连接原生 Windows Codex CLI。使用同一个本地入口连接多台 Windows 主机，保留 SSH 断线期间的远端进程，并通过原有 SSH 隧道使用桌面 MCP 工具。
 
-**这是实验性的非官方适配器。** 已验证 Desktop `26.1013.4894.0` 和 CLI `0.162.0`。App 协议更新可能需要修改适配器，因此启动器会检查已安装的 App 版本。
+**这是实验性的非官方适配器。** 默认版本检查已更新为 Desktop `26.1021.3705.0`，兼容性工具也保留对先前已验证的 `26.1013.4894.0` 的支持；CLI 已验证 `0.162.0` 和 `0.163.0`。App 协议更新可能需要修改适配器，因此启动器会检查已安装的 App 版本。
 
 ## 功能
 
@@ -12,6 +12,7 @@
 - 沿用 SSH 别名、密钥、端口、`Include`、`ProxyJump` 和 `ProxyCommand`。
 - 首次连接自动部署私有运行时及用户计划任务，复用已有的兼容服务。
 - SSH 断开时保留原生 Codex、终端和子进程；同一客户端身份重连后重新附着。
+- 按本机安装及 SSH 目标区分持久会话，避免不同电脑反复抢占彼此的连接。
 - 保留原生 Windows 执行环境，以及远端 CLI 原有的 PowerShell 配置。
 - 将桌面 MCP 反向转发监听检查适配到 Windows，保留回环绑定和认证。
 - 普通 SSH 命令和已识别的 Unix 主机交给系统 OpenSSH。
@@ -88,6 +89,7 @@ node scripts/remote.mjs status windows-dev
 | `remoteCodexCommand` | 旧版命令名；自动模式查找原生 CLI。 |
 | `maxMessageBytes` | 本地桥接消息上限，默认 16 MiB。 |
 | `testedAppVersion` | App 版本检查；修改前应完成兼容性验证。 |
+| `clientId` | 可选的非空本机安装标识；默认使用本机名和项目路径。结合 SSH 目标及原始客户端名生成哈希；不同电脑应使用不同值。 |
 
 专用启动器为 App 进程设置 `CODEX_WINDOWS_SSH_AUTO=1`。CLI 自动发现覆盖常见 npm 安装、可执行文件路径、`.local\bin` 和 WinGet 链接。自定义安装可在**远端**设置 `CODEX_CLI_PATH`，指向真正的 `codex.exe`，并确保 SSH 登录环境能读到它。
 
@@ -96,6 +98,8 @@ node scripts/remote.mjs status windows-dev
 本机 App → 项目 SSH 启动器 → 系统 OpenSSH → 远端代理 → 带认证的回环 WebSocket → 计划任务中的持久宿主 → 原生 `codex app-server --stdio` → Windows 工具和 PowerShell。
 
 持久宿主持有 Codex 的 stdio，SSH 只负责附着和脱离。宿主协调初始化、请求 ID、审批和通知缓存。同一客户端身份的新连接接管已有会话；最多保留 12 个身份，每会话离线通知上限为 32 MiB。
+
+本地桥接器为初始化客户端名添加稳定的哈希后缀。同一本机安装及 SSH 别名重连时复用会话，不同安装或别名使用独立会话；其他初始化字段和请求 ID 保持不变。更换项目路径、本机名、SSH 别名或 `clientId` 会使用新身份。如需在以后迁移目录时保持身份，应在建立会话前配置独有的 `clientId`。应用此次修复后的首次连接会创建独立会话，已有远端进程保留。此修复兼容现有 `0.2.0` 和 `0.3.0` 宿主，无须重启或替换远端服务。
 
 远端计划任务名为 `CodexWindowsSshAdapter`，文件位于 `%LOCALAPPDATA%\CodexWindowsSshAdapter`，仅当前 Windows 用户和 SYSTEM 可访问。随机令牌用于认证动态端口的回环 WebSocket，留在远端，不传给本机 App。不创建局域网监听或防火墙例外。
 
@@ -140,11 +144,18 @@ node scripts/remote.mjs start windows-dev
 | SSH 登录正常，但 Windows 检测失败，或 PowerShell 提示“拒绝访问” | 检查远端杀毒软件或终端防护的拦截记录，详见下文。 |
 | 找不到 CLI | 使用 SSH 用户运行 Codex，或设置远端 `CODEX_CLI_PATH`。 |
 | 首次连接超时 | 先执行 `npm run install:remote -- windows-dev`。 |
+| 反复 `websocket closed (code=1006)`，且 Desktop 日志出现 `Durable host closed: 1012 Reattached` | 另一连接正在接管同名会话。更新本地适配器后重连，并确认不同电脑没有共用显式配置的 `clientId`。 |
 | 无法注册任务 | 检查任务计划权限；Interactive 模式要求用户保持登录。 |
 | MCP 不可用 | 检查 SSH 转发策略；若 App 缓存了旧失败状态，完整退出并重启后连接。 |
 | Agent 和终端 Shell 不同 | Agent 沿用 CLI 设置；终端可能先启动 Windows PowerShell，可输入 `pwsh`。 |
 
 `logs/adapter.jsonl` 记录操作元数据，不记录提示词或凭据值。被忽略的 `work/` 中有缓存、测试文件及报告，可能含机器名和路径；分享诊断输出前请审查并脱敏。
+
+### VPN 连接反复重连
+
+仅凭 `1006` 无法判断是网络故障，应查看 Desktop 的 SSH 代理失败日志中的底层断开原因。`1012 Reattached` 表示持久宿主收到相同客户端身份的新连接；两个客户端持续重连时会互相挤掉。旧版适配器在不同电脑上共用 `Codex Desktop` 身份，本地身份后缀修复了该冲突，无须修改 VPN 路由、SSH 转发策略或远端计划任务。
+
+使用 Tailscale 时，先确认 DNS 解析和系统 SSH 登录，`tailscale ping windows-dev` 可辅助区分直连和中继。若 SSH 认证与反向转发成功，随后出现 `1012 Reattached`，应排查会话归属，不需要因此关闭 Tailscale 或开放额外端口。重连后用 `node scripts/remote.mjs status windows-dev` 和本机 Desktop 连接日志确认结果。其他断开原因需单独排查。
 
 ### 杀毒软件与终端防护
 
@@ -184,9 +195,9 @@ git add .
 npm run check:publication
 ```
 
-默认 12 项本地测试不需要 App、SSH 凭据或模型账号。CI 还会编译 Windows 启动器。发布检查扫描 Git 暂存区中的禁用文件和常见敏感模式，不能替代人工审查。
+默认 14 项本地测试不需要 App、SSH 凭据或模型账号，包含不同 Desktop 身份隔离及重连归属检查。CI 还会编译 Windows 启动器。发布检查扫描 Git 暂存区中的禁用文件和常见敏感模式，不能替代人工审查。
 
-历史实机验证覆盖一台原生 Windows 主机、通往同一机器的未列入适配名单的 SSH 目标、隔离的全新 `0.3.0` 安装、PowerShell、强制断线重连，以及重连前后的认证 MCP。真实临时 agent 会话也曾在 SSH 断开期间完成命令。这些不是每次 CI 都会重跑的测试。尚未验证第二台物理主机、ARM64 或普通非管理员账号；Unix 分流有本地测试覆盖，没有完成 Linux 实机验收。
+历史实机验证覆盖一台原生 Windows 主机、通往同一机器的未列入适配名单的 SSH 目标、隔离的全新 `0.3.0` 安装、PowerShell、强制断线重连，以及重连前后的认证 MCP。真实临时 agent 会话也曾在 SSH 断开期间完成命令。2026 年 10 月更新另行验证了经 Tailscale 连接两台 Windows 主机，并观察到修复后与另一客户端争抢会话的问题消失。这些是实测结果，不是每次 CI 都会重跑的测试，也不代表长期可靠性保证。尚未验证 ARM64 或普通非管理员账号；Unix 分流有本地测试覆盖，没有完成 Linux 实机验收。
 
 ## 目录说明
 
