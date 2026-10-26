@@ -116,6 +116,8 @@ The native launcher uses a Windows Job Object to own the host and its children. 
 
 ## MCP and disconnect limits
 
+Before opening the proxy WebSocket, the adapter checks whether the requested MCP port can bind to remote IPv4 loopback. A port available on the local computer can be reserved or occupied on Windows remotely. If the check fails, Desktop can retry without its optional MCP tunnel instead of repeatedly closing an already-open WebSocket. That connection has no forwarded Desktop tools; reconnect after resolving the port conflict to restore them. The check briefly binds and releases the port; SSH and the remote listener check remain authoritative if availability changes afterward.
+
 Desktop's `-R 127.0.0.1:port:127.0.0.1:port` tunnel and Bearer authentication are preserved. A Windows `Get-NetTCPConnection` check accepts exactly one IPv4 loopback listener at the expected port. The SSH server must permit reverse TCP forwarding; the adapter does not change `sshd_config`.
 
 The host adds `localhost`, `127.0.0.1`, and `::1` to its Codex children's `NO_PROXY`/`no_proxy` while retaining existing proxy settings.

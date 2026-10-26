@@ -6,6 +6,7 @@ import { parseSshArgs, classifyCommand, remoteCommand, desktopForwardPort } from
 import { serveBridge } from './bridge.mjs';
 import {detectHost,ensureHost} from './hosts.mjs';
 import {clientScope} from './client-identity.mjs';
+import {checkDesktopForward} from './forward-check.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const config = JSON.parse(fs.readFileSync(path.join(root, 'adapter.config.json'), 'utf8'));
@@ -60,6 +61,7 @@ try {
       if (!command.marker) throw new Error('Missing desktop stream marker');
       const mcpPort=desktopForwardPort(parsed,command);
       if(mcpPort)log('desktop_mcp_forward',{port:mcpPort});
+      await checkDesktopForward(activeConfig, parsed.prefix, mcpPort);
       process.stdout.write(command.marker);
       serveBridge({ input: process.stdin, output: process.stdout, maxMessageBytes: config.maxMessageBytes,
         clientScope: activeConfig.durableHost ? clientScope(config, root, parsed.host) : '',

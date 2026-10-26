@@ -107,6 +107,8 @@ node scripts/remote.mjs status windows-dev
 
 ## MCP 转发和断线边界
 
+适配器在代理 WebSocket 握手前，检查所需 MCP 端口能否绑定远端 IPv4 回环地址。本机可用的端口，在远端 Windows 上可能被保留或占用。检查失败时，Desktop 可以不启用可选的 MCP 隧道重试，避免 WebSocket 刚建立就反复关闭。这次连接不提供经隧道转发的桌面工具；解决端口冲突后重新连接可恢复。预检只短暂绑定并释放端口，之后若可用性发生变化，仍以 SSH 转发及远端监听检查为准。
+
 保留 App 的 `-R 127.0.0.1:端口:127.0.0.1:端口` 和 Bearer 认证。Windows `Get-NetTCPConnection` 检查只接受目标端口上恰好一个 IPv4 回环监听。SSH 服务端必须允许 TCP 反向转发；适配器不会修改 `sshd_config`。
 
 宿主为 Codex 子进程的 `NO_PROXY`/`no_proxy` 补充 `localhost`、`127.0.0.1` 和 `::1`，保留其他代理设置。

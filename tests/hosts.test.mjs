@@ -6,8 +6,24 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {maintenancePrefix,detectHost,ensureHost,decodeProbe,scpArguments} from '../src/hosts.mjs';
 import {parseSshArgs,remoteCommand} from '../src/commands.mjs';
+import {checkDesktopForward} from '../src/forward-check.mjs';
 const encoded=x=>'CODEX_WINDOWS_PROBE:'+Buffer.from(JSON.stringify(x)).toString('base64');
 const win={platform:'windows',architecture:'AMD64',cli:{path:'C:\\custom\\codex.exe',version:'codex-cli 0.162.0',compatible:true},installed:null};
+test('MCP preflight rejects blocked ports and failed probes, skips plain connections, and removes forwards',async()=>{
+ const prefix=['-T','-R','127.0.0.1:54321:127.0.0.1:54321','windows-dev'];
+ await checkDesktopForward({},prefix,0,{run:()=>assert.fail('plain connection must not probe')});
+ await checkDesktopForward({},prefix,54321,{run:async(c,p,command)=>{
+  assert.ok(!p.includes('-R'));assert.ok(p.includes('ClearAllForwardings=yes'));
+  assert.equal(p.at(-1),'windows-dev');
+  const script=Buffer.from(command.split(' ').at(-1),'base64').toString('utf16le');
+  assert.ok(script.includes('Loopback,54321'));assert.ok(script.includes('ExclusiveAddressUse=$true'));assert.ok(script.includes('finally {$l.Stop()}'));
+  return {code:0,stdout:'CODEX_FORWARD_AVAILABLE\r\n'};
+ }});
+ await assert.rejects(checkDesktopForward({},prefix,54321,{run:async()=>({code:42,stdout:''})}),/reserved or occupied/);
+ for(const result of [{code:255,stdout:''},{code:0,stdout:'unexpected output'}])
+  await assert.rejects(checkDesktopForward({},prefix,54321,{run:async()=>result}),/permissions/);
+ for(const port of [-1,65536,'1234'])await assert.rejects(checkDesktopForward({},prefix,port),/Invalid MCP port/);
+});
 function fixture(){const root=fs.mkdtempSync(path.join(os.tmpdir(),'adapter-hosts-'));fs.mkdirSync(path.join(root,'remote'));fs.copyFileSync(fileURLToPath(new URL('../remote/discover.ps1',import.meta.url)),path.join(root,'remote','discover.ps1'));return root;}
 test('maintenance keeps SSH identity/jump/config but never opens App forwarding ports',()=>{
  const result=maintenancePrefix(['-T','-v','-F','C:\\fixtures\\my config','-Jjumpbox','-p','2222','-l','bob','-i','C:\\fixtures\\my key','-o','ProxyCommand=custom proxy','-R','127.0.0.1:123:127.0.0.1:123','-oRemoteForward=222 localhost:333','-o','ControlPath=somewhere','new-win']);

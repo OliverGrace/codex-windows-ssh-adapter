@@ -25,7 +25,7 @@ git diff --cached --check
 git diff --cached
 ```
 
-Close any App using this checkout before rebuilding `bin/ssh.exe`. Use a separate checkout to verify a build without disturbing a running App. The default 14 tests cover classification, binary markers, SSH options, streaming, durable sessions, installation/target identity isolation, authenticated reconnect, discovery, and setup reuse. Keep identity derivation stable across changes and use the shared identity helper when looking up sessions in live tests. CI runs local tests, publication checks, and native compilation; it does not connect to your computers.
+Close any App using this checkout before rebuilding `bin/ssh.exe`. Use a separate checkout to verify a build without disturbing a running App. The default tests cover classification, binary markers, SSH options, MCP port preflight, streaming, durable sessions, installation/target identity isolation, authenticated reconnect, discovery, and setup reuse. Keep identity derivation stable across changes and use the shared identity helper when looking up sessions in live tests. CI runs local tests, publication checks, and native compilation; it does not connect to your computers.
 
 Publication checks scan the **Git index**. Stage final edits first. The check rejects generated/private file locations, binary content, private home paths, LAN addresses, and common credential patterns without printing matched values. It supplements manual review; it is not a complete secret detector. Use documentation domains and placeholders in examples, and synthetic `C:\fixtures` paths in tests.
 
