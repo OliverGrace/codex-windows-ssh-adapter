@@ -27,6 +27,9 @@ test('only supported desktop operations are translated', () => {
   assert.equal(classifyCommand('cmd.exe /c ver'),null);
   assert.equal(classifyCommand("sh -c 'echo hello'"),null);
   assert.equal(classifyCommand(envelope('rm -rf anything').command).operation,'unsupported');
+  assert.equal(classifyCommand(envelope(`pkill -9 -U "$(id -u)" -f 'codex.* app-server.* --listen'`).command).operation,'kill');
+  for(const payload of ['pkill -9 codex',`pkill -9 -U "$(id -u)" -f 'codex.* app-server.* --listen'; echo extra`])
+    assert.equal(classifyCommand(envelope(payload).command).operation,'unsupported');
   assert.throws(() => shellWords("'unclosed"));
   assert.throws(() => remoteCommand({remoteCodexCommand:'codex.cmd & echo injected'},'proxy'));
 });

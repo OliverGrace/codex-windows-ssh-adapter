@@ -129,7 +129,8 @@ The host adds `localhost`, `127.0.0.1`, and `::1` to its Codex children's `NO_PR
 - Buffer overflow drops the oldest notifications. `status.json` reports `droppedNotifications`. Persist important command logs to files.
 - Terminal continuity is supported at the protocol level. Restoring terminal tabs after a full App restart depends on Desktop's UI.
 - S4U sessions do not automatically receive interactive network-share credentials. Verify UNC paths and network drives separately.
-- Desktop's remote CLI installation/upgrade and kill-all management commands are not implemented. Maintain the native CLI directly after active work finishes.
+- Install CLI updates on the remote host first. Desktop's **Restart** action then terminates only this installation/SSH target's scoped CLI process and its child commands, and reconnects using the installed executable. Finish active work in that connection first. Other clients and the durable host remain running. Ordinary disconnect/reconnect continues to preserve the current process and does not activate an update.
+- Desktop's remote CLI installation/upgrade commands are not implemented. Unrecognized process-kill commands are rejected.
 
 ## Operations and troubleshooting
 

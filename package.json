@@ -10,6 +10,7 @@
   "scripts": {
     "test": "node --test tests/unit.test.mjs tests/bridge.test.mjs tests/durable.test.mjs tests/hosts.test.mjs",
     "test:durable": "node tests/durable-integration.mjs",
+    "test:restart": "node tests/restart-integration.mjs",
     "install:remote": "node scripts/install-remote.mjs",
     "prepare:remote": "node scripts/prepare-package.mjs",
     "setup:host": "node scripts/setup-host.mjs",

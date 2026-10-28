@@ -5,8 +5,9 @@ import { spawn } from 'node:child_process';
 import { parseSshArgs, classifyCommand, remoteCommand, desktopForwardPort } from './commands.mjs';
 import { serveBridge } from './bridge.mjs';
 import {detectHost,ensureHost} from './hosts.mjs';
-import {clientScope} from './client-identity.mjs';
+import {clientScope,scopedClientName} from './client-identity.mjs';
 import {checkDesktopForward} from './forward-check.mjs';
+import {restartSession} from './restart-session.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const config = JSON.parse(fs.readFileSync(path.join(root, 'adapter.config.json'), 'utf8'));
@@ -42,6 +43,9 @@ try {
       handled=true;
       if(!info.cli) {process.stderr.write('[Codex Windows SSH adapter] Codex CLI not found in this SSH account. Install CLI or set CODEX_CLI_PATH.\n');end(86);}
       else {if(command.marker)process.stdout.write(command.marker);if(command.operation==='version')process.stdout.write(info.cli.version+'\n');end(0);}
+    } else if(command.operation==='kill') {
+      if(!info.installed)throw Error('No durable Windows adapter was discovered; restart was not attempted');
+      activeConfig={...config,durableHost:true};
     } else if(command.operation==='bootstrap'||command.operation==='proxy') {
       if(!info.installed){log('automatic_setup');process.stderr.write('[Codex Windows SSH adapter] Preparing this Windows host for first use...\n');info=await ensureHost(root,config,info);}
       activeConfig={...config,durableHost:true,remoteVersion:info.installed.version,remoteRunner:info.installed.runner,remoteRunnerKind:info.installed.runnerKind};
@@ -51,7 +55,13 @@ try {
   else if (!command) { if (target && parsed.configQuery) log('ssh_config_query'); runRaw(args); }
   else {
     log('operation', { operation: command.operation });
-    if (command.operation === 'unsupported' || command.operation === 'platform' || command.operation === 'kill') {
+    if (command.operation === 'kill') {
+      if(!activeConfig.durableHost)throw Error('Restart requires a durable Windows adapter');
+      const name=scopedClientName('Codex Desktop',clientScope(config,root,parsed.host));
+      await restartSession(activeConfig,parsed.prefix,name);
+      if(command.marker)process.stdout.write(command.marker);
+      log('desktop_session_restarted');end(0);
+    } else if (command.operation === 'unsupported' || command.operation === 'platform') {
       process.stderr.write('[Codex Windows SSH adapter] This desktop operation is not supported; no remote command was executed. Install/update the Windows CLI directly, or reconnect to start a fresh bridge.\n'); end(64);
     } else if (command.operation === 'proxy' && parsed.reverseForward && !activeConfig.durableHost) {
       // The desktop will retry without its optional Linux-only MCP forwarding probe.

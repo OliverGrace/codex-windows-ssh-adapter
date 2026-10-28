@@ -7,6 +7,18 @@ import {fileURLToPath} from 'node:url';
 import {maintenancePrefix,detectHost,ensureHost,decodeProbe,scpArguments} from '../src/hosts.mjs';
 import {parseSshArgs,remoteCommand} from '../src/commands.mjs';
 import {checkDesktopForward} from '../src/forward-check.mjs';
+import {restartSession,restartSessionCommand} from '../src/restart-session.mjs';
+test('restart requires scoped identity, preserves maintenance transport and reports failure',async()=>{
+ const name='Codex Desktop-'+'a'.repeat(24);
+ assert.ok(restartSessionCommand(name).length<8191);
+ for(const invalid of ['Codex Desktop',"x';exit 0;#",'x-'+ 'a'.repeat(23)])assert.throws(()=>restartSessionCommand(invalid),/scoped/);
+ await restartSession({},['-p','2222','-R','127.0.0.1:10:127.0.0.1:10','windows-dev'],name,{run:async(c,p)=>{
+  assert.equal(p.at(-1),'windows-dev');assert.ok(p.includes('2222'));assert.ok(!p.includes('-R'));
+  return {code:0,stdout:'CODEX_SESSION_RESTARTED\r\n'};
+ }});
+ for(const result of [{code:1,stdout:''},{code:0,stdout:''}])
+  await assert.rejects(restartSession({},['windows-dev'],name,{run:async()=>result}),/Cannot restart/);
+});
 const encoded=x=>'CODEX_WINDOWS_PROBE:'+Buffer.from(JSON.stringify(x)).toString('base64');
 const win={platform:'windows',architecture:'AMD64',cli:{path:'C:\\custom\\codex.exe',version:'codex-cli 0.162.0',compatible:true},installed:null};
 test('MCP preflight rejects blocked ports and failed probes, skips plain connections, and removes forwards',async()=>{

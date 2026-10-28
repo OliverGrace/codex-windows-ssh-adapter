@@ -63,7 +63,7 @@ export function classifyCommand(remote) {
            command.includes('nohup ') && /app-server --listen (?:'unix:\/\/'|unix:\/\/)/.test(command)) operation = 'bootstrap';
   else if (/&& exec (?:codex|'codex') app-server proxy$/.test(command)) operation = 'proxy';
   else if (command === 'uname -s') operation = 'platform';
-  else if (command.startsWith('pkill -9 ')) operation = 'kill';
+  else if (command === `pkill -9 -U "$(id -u)" -f 'codex.* app-server.* --listen'`) operation = 'kill';
   if(operation==='proxy'&&command.includes('listeners=$(awk')) {
     const match=/\[ "\$listeners" = '0100007F:([0-9A-F]{4})' \] \|\| exit 1/.exec(command);
     if(!match) return {operation:'unsupported',marker};

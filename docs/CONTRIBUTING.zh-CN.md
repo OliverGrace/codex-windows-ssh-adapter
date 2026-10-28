@@ -46,6 +46,7 @@ npm run test:install
 | --- | --- |
 | `test:integration` | 真实 App 封装、原生握手、身份、Unicode 文件、输出流、退出码和重连。 |
 | `test:durable` | 断开自己的 SSH，检查进程和 stdin 续接及重连前后的认证 MCP。 |
+| `test:restart` | 重启唯一命名的测试会话及其子命令，验证使用已安装 CLI 版本、宿主和另一会话不受影响，最后仅清理测试会话。 |
 | `test:discovery` | 检测和启动不在旧版 `aliases` 中的主机；请选择符合条件的别名，示例名单为空。 |
 | `test:install` | 创建唯一命名的隔离任务，验证全新部署和重复安装，最后只停止并清理该实例。 |
 
