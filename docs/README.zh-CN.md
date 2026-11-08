@@ -78,6 +78,8 @@ node scripts/remote.mjs status windows-dev
 
 创建或修复桌面快捷方式可运行 `powershell.exe -NoProfile -File scripts/update-shortcut.ps1`。它沿用已安装 App 自带的图标，复制到本地忽略文件中，避免 App 更新删除旧安装目录后图标失效。启动器会在官方图标变化时自动刷新已有快捷方式，普通启动不会额外创建快捷方式。
 
+对于支持原生配置入口的 App，启动器会在初始化后请求 App 重新读取已保存的连接设置，解决新版在账户设置加载前就首次刷新连接、导致开关全部关闭的问题。已开启的主机会自动连接，明确关闭的主机保持关闭。启动器仅在文件不存在时创建空的 `$CODEX_HOME/codex-app/config.json`（默认目录为 `~/.codex`），保留已有配置，并通过 `codex://codex-app/apply-config` 启动；不会修改账户状态或 App 安装包。若未来版本不再支持该入口，则提示并回退到 SSH 设置页。如需清理生成的空配置，可退出 App 后删除该文件；自行配置过的文件应保留。
+
 ## 配置
 
 `adapter.config.json` 是被 Git 忽略的本机配置，仅提交 `adapter.config.example.json`。

@@ -115,5 +115,12 @@ export function inspectSources(sources) {
   if(prefixes.size!==1)throw Error('Desktop bootstrap builder missing or ambiguous');
   const bootstrapPrefix=[...prefixes][0];
   const wrap=extractFormatter(candidates[0].source),checks=checkFormatter(wrap,bootstrapPrefix);
-  return {wrap,checks,bootstrapPrefix,formatterBundle:candidates[0].name};
+  // This optional native route is flushed after local app-server startup. It
+  // reloads saved auto-connect preferences once account state is available.
+  // Do not substitute a version allowlist when a future App removes the route.
+  const startupConfigRefreshSupported=sources.some(({source})=>
+    source.includes('case"codex-app"')&&source.includes('"apply-config"')&&source.includes('"applyCodexAppConfig"'))&&
+    sources.some(({source})=>['applyCodexAppConfigFromDisk(', 'await this.initialRemoteConnectionsRefresh',
+      'this.remoteConnectionsHandler.refreshRemoteConnections()', '.flushPendingDeepLinks()'].every(token=>source.includes(token)));
+  return {wrap,checks,bootstrapPrefix,formatterBundle:candidates[0].name,startupConfigRefreshSupported};
 }

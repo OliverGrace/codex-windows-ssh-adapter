@@ -78,6 +78,8 @@ node scripts/remote.mjs status windows-dev
 
 To create or repair the desktop shortcut, run `powershell.exe -NoProfile -File scripts/update-shortcut.ps1`. It uses the installed App's own icon, copied into an ignored local file that survives package updates. The launcher refreshes an existing shortcut automatically when the App artwork changes; it does not create extra shortcuts during normal launch.
 
+On Desktop builds with the native setup route, the launcher also asks the App to reload saved connection preferences after startup. This works around an initial refresh that can run before account preferences are available, leaving every SSH switch off until one is clicked. Enabled hosts reconnect; explicitly disabled hosts stay disabled. The launcher creates an empty `$CODEX_HOME/codex-app/config.json` only if absent (default home: `~/.codex`), preserves existing setup files, and opens `codex://codex-app/apply-config`. It does not edit account state or the installed App. A future build without this route falls back to the SSH settings page with a warning. To undo only the generated empty setup file, exit the App and remove it; keep any setup file you have customized.
+
 ## Configuration
 
 `adapter.config.json` is local and ignored by Git. Commit only `adapter.config.example.json`.
@@ -211,7 +213,7 @@ git add .
 npm run check:publication
 ```
 
-The default suite runs 14 local tests without Desktop, SSH credentials, or a model account, including separate Desktop identities and reconnect ownership. CI also compiles Windows launchers. Publication checks inspect the Git index for prohibited files and common sensitive patterns; review the staged diff as well.
+The default suite runs local tests without Desktop, SSH credentials, or a model account, including separate Desktop identities, reconnect ownership, compatibility inspection and startup configuration preservation. CI also compiles Windows launchers. Publication checks inspect the Git index for prohibited files and common sensitive patterns; review the staged diff as well.
 
 Prior live validation covered one native Windows host, an unlisted SSH route to that same host, a fresh isolated `0.3.0` installation, PowerShell execution, forced disconnect/reconnect, and authenticated MCP before and after reconnection. A real ephemeral agent completed a command during an SSH outage. The October 2026 update additionally verified Desktop connections to two Windows hosts over Tailscale and recovery from a competing client's session takeover. These are observed results, not tests repeated by every CI run or a long-duration reliability guarantee. ARM64 and a standard non-admin account have not been validated. Unix routing has local coverage, not a completed live Linux acceptance test.
 

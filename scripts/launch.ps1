@@ -16,8 +16,10 @@ if (-not (Test-Path -LiteralPath $runtime.node)) { throw 'Node runtime has moved
 if (-not (Test-Path -LiteralPath $config.realSsh)) { throw 'System OpenSSH executable not found.' }
 # Check the installed protocol even for previously tested versions.
 # testedAppVersion is historical information, not an allowlist or a bypass.
-& $runtime.node (Join-Path $PSScriptRoot 'check-desktop.mjs') ([string]$package.Version) $package.InstallLocation
+$compatOutput = & $runtime.node (Join-Path $PSScriptRoot 'check-desktop.mjs') ([string]$package.Version) $package.InstallLocation --json
 if ($LASTEXITCODE -ne 0) { throw 'Desktop SSH protocol is incompatible or could not be checked. Run npm run doctor for details; update the adapter before connecting.' }
+$compat = $compatOutput | ConvertFrom-Json
+Write-Output "OK Desktop $($compat.version): $($compat.checks) SSH protocol checks passed"
 # Single-instance activation may silently reuse a process without our environment.
 $running = @(Get-CimInstance Win32_Process | Where-Object {
     $_.ExecutablePath -and ($_.ExecutablePath -eq $executable -or $_.ExecutablePath -eq (Join-Path $package.InstallLocation 'app\ChatGPT.exe'))
@@ -30,6 +32,9 @@ if(-not $CheckOnly) {
     catch { Write-Warning ("Cannot refresh shortcut icon: " + $_.Exception.Message) }
     & $runtime.node (Join-Path $PSScriptRoot 'prepare-package.mjs')
     if($LASTEXITCODE -ne 0){throw 'Cannot prepare Windows SSH package.'}
+    $launchUri = & $runtime.node (Join-Path $PSScriptRoot 'prepare-startup.mjs') ([string]$compat.startupConfigRefreshSupported).ToLowerInvariant()
+    if($LASTEXITCODE -ne 0){throw 'Cannot prepare native startup refresh.'}
+    if($launchUri -notin @('codex://codex-app/apply-config','codex://settings/connections/ssh')) { throw 'Unexpected startup route.' }
 }
 $oldPath = $env:PATH
 $oldAuto = $env:CODEX_WINDOWS_SSH_AUTO
@@ -46,6 +51,6 @@ try {
         return
     }
     # Start-Process normally inherits the caller's environment; never use -UseNewEnvironment.
-    $started = Start-Process -FilePath $executable -ArgumentList 'codex://settings/connections/ssh' -WorkingDirectory (Split-Path $executable) -PassThru
+    $started = Start-Process -FilePath $executable -ArgumentList $launchUri -WorkingDirectory (Split-Path $executable) -PassThru
     if ($started.WaitForExit(1500) -and $started.ExitCode -ne 0) { throw "Desktop startup failed with code $($started.ExitCode)." }
 } finally { $env:PATH = $oldPath; $env:CODEX_WINDOWS_SSH_AUTO=$oldAuto }

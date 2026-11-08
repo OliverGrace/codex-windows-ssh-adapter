@@ -27,7 +27,16 @@ test('formatter survives symbol renaming and movement into an unexecuted module'
     const result=inspect(fixture({rename:'differentSymbol',module}));
     assert.equal(result.checks,7);
     assert.equal(result.formatterBundle,'renamed-bundle.js');
+    assert.equal(result.startupConfigRefreshSupported,false);
   }
+});
+test('native startup refresh is optional and requires both route and loader signals',()=>{
+  const route={name:'route.js',source:'// case"codex-app" "apply-config" "applyCodexAppConfig"'};
+  const loader={name:'loader.js',source:'// applyCodexAppConfigFromDisk( await this.initialRemoteConnectionsRefresh this.remoteConnectionsHandler.refreshRemoteConnections() .flushPendingDeepLinks()'};
+  const base=[{name:'formatter.js',source:fixture()},signals];
+  assert.equal(inspectSources([...base,route]).startupConfigRefreshSupported,false);
+  assert.equal(inspectSources([...base,loader]).startupConfigRefreshSupported,false);
+  assert.equal(inspectSources([...base,route,loader]).startupConfigRefreshSupported,true);
 });
 test('changed envelopes, missing protocol signals and ambiguous formatters fail closed',()=>{
   assert.throws(()=>inspect(fixture({prefix:'PATH=/different; '})),/command changed/);
