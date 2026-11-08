@@ -21,11 +21,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Desktop SSH protocol is incompatible or could 
 $compat = $compatOutput | ConvertFrom-Json
 Write-Output "OK Desktop $($compat.version): $($compat.checks) SSH protocol checks passed"
 # Single-instance activation may silently reuse a process without our environment.
-$running = @(Get-CimInstance Win32_Process | Where-Object {
-    $_.ExecutablePath -and ($_.ExecutablePath -eq $executable -or $_.ExecutablePath -eq (Join-Path $package.InstallLocation 'app\ChatGPT.exe'))
-})
-if ($running.Count -gt 0 -and -not $CheckOnly) {
-    throw 'Fully exit Codex from its tray/menu first, then run this launcher. Your running chats have not been stopped.'
+. (Join-Path $PSScriptRoot 'desktop-process.ps1')
+$desktopPaths = @($executable, (Join-Path $package.InstallLocation 'app\ChatGPT.exe')) | Select-Object -Unique
+if (-not $CheckOnly -and -not (Wait-AdapterDesktopExit -ExecutablePaths $desktopPaths)) {
+    return
 }
 if(-not $CheckOnly) {
     try { & (Join-Path $PSScriptRoot 'update-shortcut.ps1') -OnlyIfExists }
@@ -47,7 +46,7 @@ try {
         Write-Output "App: $executable"
         Write-Output "Adapter: $resolved"
         Write-Output 'Target: automatic Windows detection; Unix SSH passthrough'
-        Write-Output "Existing desktop processes: $($running.Count)"
+        Write-Output "Existing desktop processes: $(@(Get-AdapterDesktopProcess -ExecutablePaths $desktopPaths).Count)"
         return
     }
     # Start-Process normally inherits the caller's environment; never use -UseNewEnvironment.

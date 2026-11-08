@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test tests/unit.test.mjs tests/bridge.test.mjs tests/durable.test.mjs tests/hosts.test.mjs tests/desktop-compat.test.mjs tests/startup.test.mjs",
+    "test": "node --test tests/unit.test.mjs tests/bridge.test.mjs tests/durable.test.mjs tests/hosts.test.mjs tests/desktop-compat.test.mjs tests/startup.test.mjs tests/desktop-process.test.mjs",
     "test:durable": "node tests/durable-integration.mjs",
     "test:restart": "node tests/restart-integration.mjs",
     "test:capabilities": "node tests/capability-integration.mjs",

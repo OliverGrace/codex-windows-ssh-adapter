@@ -78,6 +78,8 @@ node scripts/remote.mjs status windows-dev
 
 To create or repair the desktop shortcut, run `powershell.exe -NoProfile -File scripts/update-shortcut.ps1`. It uses the installed App's own icon, copied into an ignored local file that survives package updates. The launcher refreshes an existing shortcut automatically when the App artwork changes; it does not create extra shortcuts during normal launch.
 
+If Desktop is still exiting, the launcher waits **3 seconds and checks once more**. If it remains open, press **Enter** or **Y** at the prompt to force close the App and continue; any other input cancels. Force close may interrupt local tasks. Only processes matching this installed App's executable paths in your Windows session are targeted. If they still do not exit, launch stops. `-CheckOnly` never waits, prompts, or closes processes. The shortcut prefers PowerShell 7 when installed and otherwise uses Windows PowerShell.
+
 On Desktop builds with the native setup route, the launcher also asks the App to reload saved connection preferences after startup. This works around an initial refresh that can run before account preferences are available, leaving every SSH switch off until one is clicked. Enabled hosts reconnect; explicitly disabled hosts stay disabled. The launcher creates an empty `$CODEX_HOME/codex-app/config.json` only if absent (default home: `~/.codex`), preserves existing setup files, and opens `codex://codex-app/apply-config`. It does not edit account state or the installed App. A future build without this route falls back to the SSH settings page with a warning. To undo only the generated empty setup file, exit the App and remove it; keep any setup file you have customized.
 
 ## Configuration
@@ -155,7 +157,7 @@ node scripts/remote.mjs start windows-dev
 
 | Symptom | What to check |
 | --- | --- |
-| Launcher says Desktop is running | Fully exit it, then use this project's launcher. |
+| Launcher says Desktop is still running | It retries after 3 seconds; Enter/Y confirms force close, other input cancels. Finish local tasks before confirming. |
 | Version gate rejects Desktop | Review new App compatibility before changing the version setting. |
 | Host absent from SSH settings | Add a valid SSH config alias and verify system SSH access. |
 | Authentication or host-key failure | Fix the underlying SSH connection; checks are not bypassed. |
