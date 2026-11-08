@@ -63,7 +63,7 @@ The second disconnects the test SSH client while the agent command runs. Neither
 
 ## Compatibility and service changes
 
-The compatibility helper reads a small command-formatting function from the installed Desktop package. Layout and version checks are deliberately conservative. For a new App version, review the envelope/protocol, run applicable live tests, then update the example's version gate and **both** READMEs. Do not distribute the Desktop bundle.
+The compatibility helper parses the installed Desktop JavaScript with Acorn, locates the small SSH formatter by protocol content, and evaluates only that function and its lexical dependencies in a time-limited context. It does not execute the surrounding bundle or depend on minified names or a version allowlist. Every launch checks lookup, version, bootstrap (including the actual builder's prelude), proxy, restart, binary markers and TCP MCP forwarding. Missing/ambiguous code, unrecognized dependencies and failed checks stop launch. This is a startup compatibility check, not a guarantee about every future App behavior. For protocol changes, review the affected commands and run applicable live tests. Keep synthetic regression fixtures in tests; do not distribute the Desktop bundle. `testedAppVersion` is historical metadata, never a bypass.
 
 Setup reuses compatible services rather than overwriting them. Upgrade remotely after active work finishes; stopping the scheduled host kills its children. Packaging copies local Node and downloads its matching license, so a new Node version changes the generated package.
 

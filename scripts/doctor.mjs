@@ -14,12 +14,12 @@ for(const file of [runtime.node,config.realSsh,path.join(root,'bin','ssh.exe')])
   console.log('OK executable: '+file);
 }
 const desktop=inspectDesktop();
-if(desktop.version!==config.testedAppVersion)throw new Error('Desktop version changed; run compatibility review before enabling the launcher');
+console.log('OK automatic Desktop protocol checks: '+desktop.checks);
 const proxy='if [ -S "${SSH_AUTH_SOCK:-}" ]; then true; fi && exec codex app-server proxy';
 const probes=[
   ['if command -v codex >/dev/null 2>&1; then exit 0; fi; exit 86','lookup'],
   ['codex --version','version'],
-  ['if [ "${CODEX_SSH_SKIP_APP_SERVER_BOOT:-}" = "true" ]; then exit 0; fi; nohup codex app-server --listen unix://','bootstrap'],
+  [desktop.bootstrapPrefix+'if [ "${CODEX_SSH_SKIP_APP_SERVER_BOOT:-}" = "true" ]; then exit 0; fi; nohup codex app-server --listen unix://','bootstrap'],
   [proxy,'proxy'],
 ];
 for(const [payload,operation] of probes) {

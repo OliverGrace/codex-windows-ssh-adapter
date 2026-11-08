@@ -4,7 +4,7 @@
 
 Connect Codex Desktop's **Settings → Connections → SSH** to a native Windows Codex CLI. Use one local launcher for your Windows SSH hosts, keep remote processes running across SSH disconnects, and forward Desktop MCP tools through the existing SSH tunnel.
 
-**Experimental, unofficial compatibility adapter.** The default version gate targets Desktop `26.1021.3705.0`; the compatibility helper also retains support for the previously tested `26.1013.4894.0`. CLI `0.162.0` and `0.163.0` have been tested. Desktop protocol changes may require adapter changes; the launcher checks the installed App version before starting it.
+**Experimental, unofficial compatibility adapter.** The launcher checks the installed Desktop SSH command format on every launch instead of blocking unfamiliar version numbers. Compatible App updates can start without editing configuration. Desktop `26.1103.3517.0` has been checked; CLI `0.162.0`, `0.163.0` and `0.166.0` have been exercised. Changes to the actual protocol or an unrecognized bundle layout may still require an adapter update.
 
 ## Features
 
@@ -88,7 +88,7 @@ node scripts/remote.mjs status windows-dev
 | `durableHost` | Enables the persistent host in legacy mode; automatic mode uses it for Windows. |
 | `remoteCodexCommand` | Legacy command name; automatic discovery finds the native CLI. |
 | `maxMessageBytes` | Local bridge message limit, default 16 MiB. |
-| `testedAppVersion` | Desktop version gate. Run compatibility checks before changing it. |
+| `testedAppVersion` | Historical tested-version label. It no longer blocks updates or bypasses protocol checks; existing values can stay unchanged. |
 | `clientId` | Optional nonempty installation identifier. Defaults to the local machine name and checkout path; combined with the SSH target and original client name before hashing. Use different values on different computers. |
 
 The launcher sets `CODEX_WINDOWS_SSH_AUTO=1` for its App process. CLI discovery covers common npm installations, executable paths, `.local\bin`, and WinGet links. For a custom installation, set **remote** `CODEX_CLI_PATH` to the real `codex.exe`, visible to the SSH login environment.

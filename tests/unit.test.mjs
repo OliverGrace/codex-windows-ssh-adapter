@@ -27,6 +27,10 @@ test('only supported desktop operations are translated', () => {
   assert.equal(classifyCommand('cmd.exe /c ver'),null);
   assert.equal(classifyCommand("sh -c 'echo hello'"),null);
   assert.equal(classifyCommand(envelope('rm -rf anything').command).operation,'unsupported');
+  const uidPrelude='uid=$(id -u) || exit 1; printf "%s\\n" "$uid"; ';
+  assert.equal(classifyCommand(envelope(uidPrelude+bootstrapCommand).command).operation,'bootstrap');
+  assert.equal(classifyCommand(envelope(uidPrelude+'codex --version').command).operation,'unsupported');
+  assert.equal(classifyCommand(envelope('uid=$(id -u); '+bootstrapCommand).command).operation,'unsupported');
   assert.equal(classifyCommand(envelope(`pkill -9 -U "$(id -u)" -f 'codex.* app-server.* --listen'`).command).operation,'kill');
   for(const payload of ['pkill -9 codex',`pkill -9 -U "$(id -u)" -f 'codex.* app-server.* --listen'; echo extra`])
     assert.equal(classifyCommand(envelope(payload).command).operation,'unsupported');

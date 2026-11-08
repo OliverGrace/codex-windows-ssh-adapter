@@ -56,11 +56,16 @@ export function classifyCommand(remote) {
   if (match) { marker = Buffer.from(match[1].match(/[0-7]{3}/g).map(s => parseInt(s, 8))); payload = payload.slice(match[0].length); }
   if (!payload.startsWith(pathPrefix)) return { operation: 'unsupported', marker };
   const command = payload.slice(pathPrefix.length);
+  // New Desktop builds query a Unix UID to select Unix-domain MCP forwarding.
+  // Recognize that prelude only on bootstrap. Windows deliberately returns no
+  // UID/socket directory, so Desktop keeps using its TCP forwarding fallback.
+  const uidPrelude = 'uid=$(id -u) || exit 1; printf "%s\\n" "$uid"; ';
+  const bootstrap = command.startsWith(uidPrelude) ? command.slice(uidPrelude.length) : command;
   let operation = 'unsupported';
   if (/^if command -v (?:codex|'codex') >\/dev\/null 2>&1; then exit 0; fi; exit 86$/.test(command)) operation = 'lookup';
   else if (/^(?:codex|'codex') --version$/.test(command)) operation = 'version';
-  else if (command.startsWith('if [ "${CODEX_SSH_SKIP_APP_SERVER_BOOT:-}" = "true" ]; then exit 0; fi; ') &&
-           command.includes('nohup ') && /app-server --listen (?:'unix:\/\/'|unix:\/\/)/.test(command)) operation = 'bootstrap';
+  else if (bootstrap.startsWith('if [ "${CODEX_SSH_SKIP_APP_SERVER_BOOT:-}" = "true" ]; then exit 0; fi; ') &&
+           bootstrap.includes('nohup ') && /app-server --listen (?:'unix:\/\/'|unix:\/\/)/.test(bootstrap)) operation = 'bootstrap';
   else if (/&& exec (?:codex|'codex') app-server proxy$/.test(command)) operation = 'proxy';
   else if (command === 'uname -s') operation = 'platform';
   else if (command === `pkill -9 -U "$(id -u)" -f 'codex.* app-server.* --listen'`) operation = 'kill';

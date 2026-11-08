@@ -4,7 +4,7 @@
 
 让 Codex Desktop 的 **设置 → 连接 → SSH** 连接原生 Windows Codex CLI。使用同一个本地入口连接多台 Windows 主机，保留 SSH 断线期间的远端进程，并通过原有 SSH 隧道使用桌面 MCP 工具。
 
-**这是实验性的非官方适配器。** 默认版本检查已更新为 Desktop `26.1021.3705.0`，兼容性工具也保留对先前已验证的 `26.1013.4894.0` 的支持；CLI 已验证 `0.162.0` 和 `0.163.0`。App 协议更新可能需要修改适配器，因此启动器会检查已安装的 App 版本。
+**这是实验性的非官方适配器。** 启动器每次启动都会检查已安装 App 的 SSH 命令格式，不再因为版本号陌生而阻止启动。兼容的 App 更新无需修改配置。已检查 Desktop `26.1103.3517.0`，CLI 已测试 `0.162.0`、`0.163.0` 和 `0.166.0`。实际协议变化或无法识别的程序包布局仍可能需要更新适配器。
 
 ## 功能
 
@@ -88,7 +88,7 @@ node scripts/remote.mjs status windows-dev
 | `durableHost` | 旧版模式的持久宿主开关；自动模式下 Windows 使用持久宿主。 |
 | `remoteCodexCommand` | 旧版命令名；自动模式查找原生 CLI。 |
 | `maxMessageBytes` | 本地桥接消息上限，默认 16 MiB。 |
-| `testedAppVersion` | App 版本检查；修改前应完成兼容性验证。 |
+| `testedAppVersion` | 历史测试版本记录；不再阻止 App 更新，也不能跳过协议检查，原有值可以保持不变。 |
 | `clientId` | 可选的非空本机安装标识；默认使用本机名和项目路径。结合 SSH 目标及原始客户端名生成哈希；不同电脑应使用不同值。 |
 
 专用启动器为 App 进程设置 `CODEX_WINDOWS_SSH_AUTO=1`。CLI 自动发现覆盖常见 npm 安装、可执行文件路径、`.local\bin` 和 WinGet 链接。自定义安装可在**远端**设置 `CODEX_CLI_PATH`，指向真正的 `codex.exe`，并确保 SSH 登录环境能读到它。

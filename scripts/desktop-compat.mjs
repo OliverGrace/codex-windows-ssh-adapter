@@ -1,47 +1,32 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 import {execFileSync} from 'node:child_process';
+import {inspectSources} from './desktop-protocol.mjs';
 
-export function inspectDesktop() {
-  const pkg=JSON.parse(execFileSync('powershell.exe',['-NoProfile','-Command',
-    'Get-AppxPackage OpenAI.Codex | Sort-Object Version -Descending | Select-Object -First 1 Version,InstallLocation | ConvertTo-Json -Compress'],{encoding:'utf8',windowsHide:true}).trim());
+export function inspectDesktop(pkg) {
+  if(!pkg) {
+    const pwsh=path.join(process.env.ProgramFiles??'C:\\Program Files','PowerShell','7','pwsh.exe');
+    pkg=JSON.parse(execFileSync(fs.existsSync(pwsh)?pwsh:'powershell.exe',['-NoProfile','-Command',
+      'Get-AppxPackage OpenAI.Codex | Sort-Object Version -Descending | Select-Object -First 1 Version,InstallLocation | ConvertTo-Json -Compress'],{encoding:'utf8',windowsHide:true}).trim());
+  }
+  if(!pkg?.InstallLocation||!pkg.Version)throw Error('Codex desktop package not found');
   const fd=fs.openSync(path.join(pkg.InstallLocation,'app','resources','app.asar'),'r');
   try {
-    const b=Buffer.alloc(16); fs.readSync(fd,b,0,16,0);
-    const header=Buffer.alloc(b.readUInt32LE(12));fs.readSync(fd,header,0,header.length,16);
-    const entries=JSON.parse(header).files['.vite'].files.build.files;
-    const name=Object.keys(entries).find(n=>/^main-.*\.js$/.test(n));
-    if(!name)throw new Error('Desktop main bundle not found');
-    const readEntry=name=>{
-      const entry=entries[name], content=Buffer.alloc(Number(entry.size));
-      fs.readSync(fd,content,0,content.length,8+b.readUInt32LE(4)+Number(entry.offset));
-      return content.toString('utf8');
-    };
-    const main=readEntry(name);
-    let source=main, first='aS', next='oS';
-    let names={quote:'iS',octal:'jme',path:'Eme',home:'Dme'};
-    // This reviewed release moved the same pure shell formatter into bootstrap.
-    // Keep the version guard: future minifier names must not select unrelated code.
-    if(pkg.Version==='26.1021.3705.0') {
-      const bootstrap=/require\("\.\/(bootstrap-[^"/]+\.js)"\)/.exec(main)?.[1];
-      if(!bootstrap||!entries[bootstrap])throw new Error('Desktop bootstrap bundle not found');
-      source=readEntry(bootstrap); first='nO'; next='rO';
-      names={quote:'tO',octal:'cO',path:'$D',home:'eO'};
-      if(!source.includes('exports.gt=nO')||!main.includes('_.gt(i,a)'))throw new Error('Desktop SSH formatter call changed');
-    } else if(pkg.Version!=='26.1013.4894.0') {
-      throw new Error('Desktop version has not been reviewed: '+pkg.Version);
+    const b=Buffer.alloc(16);fs.readSync(fd,b,0,16,0);
+    const size=b.readUInt32LE(12);
+    if(size<2||size>32*1024*1024)throw Error('Unsupported Desktop archive header');
+    const header=Buffer.alloc(size);fs.readSync(fd,header,0,size,16);
+    const entries=JSON.parse(header).files?.['.vite']?.files?.build?.files;
+    if(!entries)throw Error('Desktop JavaScript bundle layout changed');
+    const sources=[];
+    for(const [name,entry] of Object.entries(entries)) {
+      if(!name.endsWith('.js')||entry.unpacked||entry.files)continue;
+      const size=Number(entry.size),offset=Number(entry.offset);
+      if(!Number.isSafeInteger(size)||size<0||size>64*1024*1024||!Number.isSafeInteger(offset)||offset<0)throw Error('Invalid Desktop bundle entry');
+      const content=Buffer.alloc(size);
+      if(fs.readSync(fd,content,0,size,8+b.readUInt32LE(4)+offset)!==size)throw Error('Incomplete Desktop bundle');
+      sources.push({name,source:content.toString('utf8')});
     }
-    const start=source.indexOf('function '+first+'('), end=source.indexOf('function '+next+'(',start);
-    if(start<0||end<start||end-start>5000||!main.includes('app-server proxy')||!main.includes('CODEX_SSH_SKIP_APP_SERVER_BOOT')||!source.slice(start,end).includes('CODEX_REMOTE_PAYLOAD'))throw new Error('Desktop command layout changed; review adapter before activation');
-    // Only the small, pure command-formatting function from the installed, trusted
-    // desktop package runs here. No state or application startup code is evaluated.
-    const shellQuote=e=>`'${e.replaceAll("'","'\\''")}'`;
-    const wrap=vm.runInNewContext(source.slice(start,end)+'; '+first,{
-      [names.quote]:shellQuote,[names.octal]:e=>Array.from(e,b=>'\\'+b.toString(8).padStart(3,'0')).join(''),
-      [names.path]:'PATH="${CODEX_INSTALL_DIR:-$HOME/.local/bin}:$PATH"; export PATH',
-      [names.home]:'CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"; export CODEX_HOME'
-    },{timeout:1000});
-    return {version:pkg.Version,installLocation:pkg.InstallLocation,wrap};
+    return {version:String(pkg.Version),installLocation:pkg.InstallLocation,...inspectSources(sources)};
   } finally {fs.closeSync(fd);}
 }

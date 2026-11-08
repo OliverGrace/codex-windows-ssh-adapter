@@ -14,9 +14,10 @@ if (-not (Test-Path -LiteralPath (Join-Path $bin 'ssh.exe'))) { throw 'Run scrip
 $runtime = Get-Content -LiteralPath (Join-Path $bin 'runtime.json') -Raw | ConvertFrom-Json
 if (-not (Test-Path -LiteralPath $runtime.node)) { throw 'Node runtime has moved; rebuild the launcher.' }
 if (-not (Test-Path -LiteralPath $config.realSsh)) { throw 'System OpenSSH executable not found.' }
-if ([string]$package.Version -ne $config.testedAppVersion) {
-    throw "Codex changed to $($package.Version). Run the compatibility tests before updating testedAppVersion."
-}
+# Check the installed protocol even for previously tested versions.
+# testedAppVersion is historical information, not an allowlist or a bypass.
+& $runtime.node (Join-Path $PSScriptRoot 'check-desktop.mjs') ([string]$package.Version) $package.InstallLocation
+if ($LASTEXITCODE -ne 0) { throw 'Desktop SSH protocol is incompatible or could not be checked. Run npm run doctor for details; update the adapter before connecting.' }
 # Single-instance activation may silently reuse a process without our environment.
 $running = @(Get-CimInstance Win32_Process | Where-Object {
     $_.ExecutablePath -and ($_.ExecutablePath -eq $executable -or $_.ExecutablePath -eq (Join-Path $package.InstallLocation 'app\ChatGPT.exe'))
