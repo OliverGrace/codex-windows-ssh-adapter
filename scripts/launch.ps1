@@ -26,6 +26,8 @@ if ($running.Count -gt 0 -and -not $CheckOnly) {
     throw 'Fully exit Codex from its tray/menu first, then run this launcher. Your running chats have not been stopped.'
 }
 if(-not $CheckOnly) {
+    try { & (Join-Path $PSScriptRoot 'update-shortcut.ps1') -OnlyIfExists }
+    catch { Write-Warning ("Cannot refresh shortcut icon: " + $_.Exception.Message) }
     & $runtime.node (Join-Path $PSScriptRoot 'prepare-package.mjs')
     if($LASTEXITCODE -ne 0){throw 'Cannot prepare Windows SSH package.'}
 }

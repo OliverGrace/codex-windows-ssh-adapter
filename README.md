@@ -76,6 +76,8 @@ node scripts/remote.mjs status windows-dev
 
 `--check` probes without installing. Setup reuses compatible `0.2.0` or `0.3.0` services without replacing files, tokens, or running processes. It is not an in-place upgrade command.
 
+To create or repair the desktop shortcut, run `powershell.exe -NoProfile -File scripts/update-shortcut.ps1`. It uses the installed App's own icon, copied into an ignored local file that survives package updates. The launcher refreshes an existing shortcut automatically when the App artwork changes; it does not create extra shortcuts during normal launch.
+
 ## Configuration
 
 `adapter.config.json` is local and ignored by Git. Commit only `adapter.config.example.json`.
@@ -113,6 +115,8 @@ The local bridge adds a stable hashed suffix to the initialization client name. 
 The remote task is named `CodexWindowsSshAdapter`. Files live in `%LOCALAPPDATA%\CodexWindowsSshAdapter`, restricted to the Windows user and SYSTEM. A random token authenticates a dynamically allocated loopback WebSocket; the token stays remote. No LAN listener or firewall exception is created.
 
 The native launcher uses a Windows Job Object to own the host and its children. **Stopping the scheduled task terminates its Codex sessions, terminals, and child processes.** Disconnecting SSH does not stop that task.
+
+If an App update changes initialization capabilities, an existing durable session can refuse the new parameters. The bridge retries that specific error once using a deterministic capability-specific identity, leaving the old process and its work alive. Subsequent connections reuse that profile. Only successfully initialized identities are recorded in the private `work/active-sessions/` cache so **Restart** targets the selected profile, not the previous session. Keep this cache while connected. Old profiles still count toward the host's 12-session limit; no unrelated errors or session-limit failures are retried automatically.
 
 ## MCP and disconnect limits
 

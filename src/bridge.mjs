@@ -2,10 +2,12 @@ import http from 'node:http';
 import { Duplex } from 'node:stream';
 import { WebSocketServer, WebSocket } from 'ws';
 import { scopedClientName } from './client-identity.mjs';
+import { capabilityProfile } from './session-profiles.mjs';
 
 // A WebSocket endpoint over process pipes, never a network listener.
-export function serveBridge({ input, output, startChild, clientScope = '', maxMessageBytes = 16 * 1024 * 1024, onFinish = () => {}, log = () => {} }) {
+export function serveBridge({ input, output, startChild, clientScope = '', maxMessageBytes = 16 * 1024 * 1024, onFinish = () => {}, onSessionReady = () => {}, log = () => {} }) {
   let child, ws, finished = false, upgraded = false, exitTimer, stdoutBuffer = Buffer.alloc(0), upstreamEnded = false;
+  let initialization;
   const socket = new Duplex({
     read() { input.resume(); },
     write(chunk, encoding, callback) { output.write(chunk, encoding, callback); },
@@ -56,7 +58,24 @@ export function serveBridge({ input, output, startChild, clientScope = '', maxMe
           const line = stdoutBuffer.subarray(0, index).toString('utf8').trim();
           stdoutBuffer = stdoutBuffer.subarray(index + 1);
           if (!line) continue;
-          try { JSON.parse(line); } catch { fail('Remote stdout contains non-JSON data'); return; }
+          let response;
+          try { response=JSON.parse(line); } catch { fail('Remote stdout contains non-JSON data'); return; }
+          if(initialization&&response?.id===initialization.message.id&&!response.method) {
+            const pending=initialization;
+            if(!pending.retried&&response.error?.code===-32000&&response.error.message==='Client capabilities changed; finish tasks and restart the adapter service') {
+              // The old host explicitly refused attachment. Retry once with a
+              // capability-specific identity; never terminate its existing work.
+              pending.retried=true;
+              pending.message.params.clientInfo.name=capabilityProfile(pending.base,pending.message.params.capabilities);
+              child.stdin.write(JSON.stringify(pending.message)+'\n');
+              log('client_capabilities_migrated');continue;
+            }
+            if(response.result) {
+              try {onSessionReady(pending.base,pending.message.params.clientInfo.name);}
+              catch {fail('Cannot record active session identity');return;}
+            }
+            initialization=undefined;
+          }
           if (ws.readyState === WebSocket.OPEN) {
             child.stdout.pause();
             ws.send(line, error => { if (error) fail('Client output closed'); else if (!finished) child.stdout.resume(); });
@@ -74,6 +93,7 @@ export function serveBridge({ input, output, startChild, clientScope = '', maxMe
         // Scope only the durable identity; preserve request IDs and all other data.
         if (clientScope && message.method === 'initialize' && typeof message.params?.clientInfo?.name === 'string') {
           message.params.clientInfo.name = scopedClientName(message.params.clientInfo.name, clientScope);
+          if(message.id!==undefined)initialization={message,base:message.params.clientInfo.name,retried:false};
         }
         if (!child.stdin.write(JSON.stringify(message) + '\n')) { ws.pause(); child.stdin.once('drain', () => { if (!finished) ws.resume(); }); }
       });

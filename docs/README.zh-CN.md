@@ -76,6 +76,8 @@ node scripts/remote.mjs status windows-dev
 
 `--check` 仅检测，不安装。安装器复用兼容的 `0.2.0` 或 `0.3.0` 服务，不覆盖文件、令牌或运行中的进程；这不是原地升级命令。
 
+创建或修复桌面快捷方式可运行 `powershell.exe -NoProfile -File scripts/update-shortcut.ps1`。它沿用已安装 App 自带的图标，复制到本地忽略文件中，避免 App 更新删除旧安装目录后图标失效。启动器会在官方图标变化时自动刷新已有快捷方式，普通启动不会额外创建快捷方式。
+
 ## 配置
 
 `adapter.config.json` 是被 Git 忽略的本机配置，仅提交 `adapter.config.example.json`。
@@ -104,6 +106,8 @@ node scripts/remote.mjs status windows-dev
 远端计划任务名为 `CodexWindowsSshAdapter`，文件位于 `%LOCALAPPDATA%\CodexWindowsSshAdapter`，仅当前 Windows 用户和 SYSTEM 可访问。随机令牌用于认证动态端口的回环 WebSocket，留在远端，不传给本机 App。不创建局域网监听或防火墙例外。
 
 原生启动器使用 Windows Job Object 管理宿主和子进程。**停止该计划任务会结束它拥有的 Codex 会话、终端及子进程。** 普通 SSH 断线不会停止任务。
+
+App 更新若改变初始化能力参数，旧持久会话可能拒绝新的参数。桥接器只针对这一明确错误重试一次，使用由能力参数决定的稳定新身份，保留旧进程和其中的工作；以后重连复用该身份。成功初始化的身份记录在本机 `work/active-sessions/` 缓存中，让“重启”只操作当前选中的会话，连接期间请保留该缓存。旧会话仍计入宿主的 12 会话上限；其他错误和会话数限制不会被自动重试。
 
 ## MCP 转发和断线边界
 

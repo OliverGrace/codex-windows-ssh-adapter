@@ -47,6 +47,7 @@ npm run test:install
 | `test:integration` | Actual Desktop envelope, native handshake, identity, Unicode files, streaming, exit status, reconnect. |
 | `test:durable` | Disconnect its own SSH; verify process/stdin continuity and authenticated MCP before/after reconnection. |
 | `test:restart` | Restart a uniquely named test session and its command tree; verify the installed CLI version, unchanged host and unaffected second session; clean up only these test sessions. |
+| `test:capabilities` | Change a unique test client's capabilities, verify profile selection/reconnect and targeted restart while preserving the old process, then clean up both test sessions. |
 | `test:discovery` | Detect/bootstrap a host absent from `adapter.config.json`'s legacy `aliases`. Choose such an alias; the example list is empty. |
 | `test:install` | Create a uniquely named isolated task; verify fresh setup and repeat-install reuse; stop/remove only that instance in cleanup. |
 

@@ -4,8 +4,39 @@ import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
 import {pipeClient} from './helpers.mjs';
 import {clientScope,scopedClientName} from '../src/client-identity.mjs';
+import {capabilityProfile,activeSession,saveActiveSession} from '../src/session-profiles.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const start = () => pipeClient(process.execPath,[fileURLToPath(new URL('./mock-bridge.mjs',import.meta.url))]);
+test('capability conflicts retry once with a stable isolated identity and preserve params',async()=>{
+  const scope='profile-scope',capabilities={experimentalApi:true,requestAttestation:false};
+  const c=await pipeClient(process.execPath,[fileURLToPath(new URL('./mock-bridge.mjs',import.meta.url)),scope,'migrate']);
+  try {
+    const result=await c.rpc('initialize',{clientInfo:{name:'Codex Desktop',title:'Test',version:'new'},capabilities});
+    assert.equal(result.attempts,2);
+    assert.equal(result.clientInfo.name,capabilityProfile(scopedClientName('Codex Desktop',scope),capabilities));
+    assert.equal(result.clientInfo.title,'Test');assert.deepEqual(result.capabilities,capabilities);
+    assert.notEqual(result.clientInfo.name,capabilityProfile(scopedClientName('Codex Desktop','other-scope'),capabilities));
+  } finally {await c.close();}
+  for(const mode of ['always-reject','other-error']) {
+    const c=await pipeClient(process.execPath,[fileURLToPath(new URL('./mock-bridge.mjs',import.meta.url)),scope,mode]);
+    try {await assert.rejects(c.rpc('initialize',{clientInfo:{name:'Codex Desktop'},capabilities},3000),mode==='other-error'?/unrelated/:/capabilities changed/);}
+    finally {await c.close();}
+  }
+});
+test('restart selection persists only an identity in the same installation scope',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'adapter-profiles-'));
+  try {
+    const base=scopedClientName('Codex Desktop','scope'),selected=capabilityProfile(base,{newFeature:true});
+    assert.equal(activeSession(root,base),base);
+    saveActiveSession(root,base,selected);assert.equal(activeSession(root,base),selected);
+    assert.ok(selected.length<=200);
+    assert.throws(()=>saveActiveSession(root,base,capabilityProfile(scopedClientName('Codex Desktop','other'),{})),/Invalid/);
+    saveActiveSession(root,base,base);assert.equal(activeSession(root,base),base);
+  } finally {assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});}
+});
 test('client scope normalizes Windows names and supports a stable configured installation ID', () => {
   const scope=clientScope({},'C:\\fixtures\\adapter','windows-dev','test-machine');
   assert.equal(scope,clientScope({},'C:\\FIXTURES\\ADAPTER','WINDOWS-DEV','TEST-MACHINE'));

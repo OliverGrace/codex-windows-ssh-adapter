@@ -8,6 +8,7 @@ import {detectHost,ensureHost} from './hosts.mjs';
 import {clientScope,scopedClientName} from './client-identity.mjs';
 import {checkDesktopForward} from './forward-check.mjs';
 import {restartSession} from './restart-session.mjs';
+import {activeSession,saveActiveSession} from './session-profiles.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const config = JSON.parse(fs.readFileSync(path.join(root, 'adapter.config.json'), 'utf8'));
@@ -58,7 +59,7 @@ try {
     if (command.operation === 'kill') {
       if(!activeConfig.durableHost)throw Error('Restart requires a durable Windows adapter');
       const name=scopedClientName('Codex Desktop',clientScope(config,root,parsed.host));
-      await restartSession(activeConfig,parsed.prefix,name);
+      await restartSession(activeConfig,parsed.prefix,activeSession(root,name));
       if(command.marker)process.stdout.write(command.marker);
       log('desktop_session_restarted');end(0);
     } else if (command.operation === 'unsupported' || command.operation === 'platform') {
@@ -75,6 +76,7 @@ try {
       process.stdout.write(command.marker);
       serveBridge({ input: process.stdin, output: process.stdout, maxMessageBytes: config.maxMessageBytes,
         clientScope: activeConfig.durableHost ? clientScope(config, root, parsed.host) : '',
+        onSessionReady: (base,selected) => saveActiveSession(root,base,selected),
         startChild() { const p = spawnRemote(parsed.prefix, 'proxy',mcpPort); p.stderr.pipe(process.stderr); return p; }, onFinish: end, log });
     } else {
       const p = spawnRemote(parsed.prefix, command.operation);
