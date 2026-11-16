@@ -52,4 +52,13 @@ try {
     # Start-Process normally inherits the caller's environment; never use -UseNewEnvironment.
     $started = Start-Process -FilePath $executable -ArgumentList $launchUri -WorkingDirectory (Split-Path $executable) -PassThru
     if ($started.WaitForExit(1500) -and $started.ExitCode -ne 0) { throw "Desktop startup failed with code $($started.ExitCode)." }
+    # The App may recreate its Start Menu link after our pre-launch icon repair.
+    # A hidden, bounded helper repairs it again without restarting Explorer/App.
+    try {
+        $pwsh = Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'
+        $iconShell = if (Test-Path -LiteralPath $pwsh) { $pwsh } else { 'powershell.exe' }
+        $iconScript = Join-Path $PSScriptRoot 'refresh-taskbar-icon.ps1'
+        $iconArgs = '-NoProfile -ExecutionPolicy Bypass -File "' + $iconScript + '" -WatchStartup'
+        Start-Process -FilePath $iconShell -ArgumentList $iconArgs -WindowStyle Hidden -WorkingDirectory $project | Out-Null
+    } catch { Write-Warning ("Cannot schedule taskbar icon refresh: " + $_.Exception.Message) }
 } finally { $env:PATH = $oldPath; $env:CODEX_WINDOWS_SSH_AUTO=$oldAuto }
