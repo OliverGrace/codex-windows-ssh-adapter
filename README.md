@@ -76,7 +76,9 @@ node scripts/remote.mjs status windows-dev
 
 `--check` probes without installing. Setup reuses compatible `0.2.0` or `0.3.0` services without replacing files, tokens, or running processes. It is not an in-place upgrade command.
 
-To create or repair the desktop shortcut, run `powershell.exe -NoProfile -File scripts/update-shortcut.ps1`. It uses the installed App's own icon, copied into an ignored local file that survives package updates. The launcher refreshes an existing shortcut automatically when the App artwork changes; it does not create extra shortcuts during normal launch.
+To create or repair the desktop shortcut, run `powershell.exe -NoProfile -File scripts/update-shortcut.ps1`. It copies the installed App's transparent window icon (`chatgpt-app-dark.ico` or `chatgpt-app-light.ico`, selected by the Windows shell theme) into an ignored local file that survives package updates. It does not use the legacy shaded executable artwork. The launcher refreshes an existing shortcut when the artwork or shell theme changes; it does not create extra shortcuts during normal launch.
+
+The same repair updates existing current-user Start Menu/taskbar links that target this adapter, or the installed App with its matching application identity. This also fixes the running taskbar group's shaded icon. It backs up changed links, preserves their launch targets and application identity, and notifies Explorer to refresh. It does not pin/unpin items or restart Explorer; a theme change is picked up on the next adapter launch or manual repair.
 
 If Desktop is still exiting, the launcher waits **3 seconds and checks once more**. If it remains open, press **Enter** or **Y** at the prompt to force close the App and continue; any other input cancels. Force close may interrupt local tasks. Only processes matching this installed App's executable paths in your Windows session are targeted. If they still do not exit, launch stops. `-CheckOnly` never waits, prompts, or closes processes. The shortcut prefers PowerShell 7 when installed and otherwise uses Windows PowerShell.
 
