@@ -59,6 +59,34 @@ test('unknown Windows hosts discovered; caches separated by resolved SSH identit
   await assert.rejects(detectHost(root,{},parsed,{fresh:true,run:async(c,p,command)=>command===null?{code:0,stdout:'authfail'}:{code:255,stdout:''}}),/authentication/);
  } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
+test('discovery prefers pwsh, falls back for legacy hosts, and never retries authentication or timeouts',async()=>{
+ const root=fixture(),parsed=parseSshArgs(['-T','fixture']);
+ try {
+  for(const legacy of [false,true]) {
+   const seen=[];
+   const info=await detectHost(root,{},parsed,{fresh:true,run:async(c,p,command,options)=>{
+    if(command===null)return {code:0,stdout:'fixture'};
+    seen.push({command,input:options.input});
+    if(legacy&&command.startsWith('pwsh.exe '))return {code:1,stdout:'',stderr:'not found'};
+    return {code:0,stdout:encoded(win)};
+   }});
+   assert.equal(info.platform,'windows');assert.ok(seen[0].command.startsWith('pwsh.exe '));
+   assert.equal(seen.length,legacy?2:1);
+   if(legacy){assert.ok(seen[1].command.startsWith('powershell.exe '));assert.deepEqual(seen[0].input,seen[1].input);}
+  }
+  for(const timedOut of [false,true]) {
+   let probes=0;
+   await assert.rejects(detectHost(root,{},parsed,{fresh:true,run:async(c,p,command)=>{
+    if(command===null)return {code:0,stdout:'fixture'};
+    probes++;
+    if(timedOut)throw Error('SSH operation timed out');
+    return {code:255,stdout:''};
+   }}),timedOut?/timed out/:/authentication/);
+   assert.equal(probes,1);
+  }
+ } finally {assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});}
+});
+
 test('provisioning is idempotent, rejects unsupported CLI and validates discovered versions',async()=>{
  const existing={...win,installed:{version:'0.2.0',runner:false}};
  assert.equal(await ensureHost('',{},existing,{run:()=>assert.fail('must not install')}),existing);

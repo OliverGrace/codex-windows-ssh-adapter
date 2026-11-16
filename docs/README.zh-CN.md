@@ -174,7 +174,7 @@ node scripts/remote.mjs start windows-dev
 
 安全软件可能拦截适配器的子进程，即使 SSH 登录本身正常。一次使用 360 安全软件的部署中，`ssh ... hostname` 可以执行，远端 `powershell.exe` 却返回“拒绝访问”，导致主机检测提示 `Cannot identify this SSH host as Windows or Unix`。放行被拦截的操作后，App 重新连接到原有 Codex 进程，断线和 MCP 测试通过。这是排查案例，不代表所有“拒绝访问”都由杀毒软件引起。
 
-适配器使用 Windows PowerShell（`powershell.exe`）进行主机检测、计划任务管理和 MCP 监听检查。Agent 的 PowerShell 7（`pwsh.exe`）可以正常运行，并不代表这些适配器操作也已获准执行。
+主机检测优先使用 PowerShell 7（`pwsh.exe`）：部分 Windows PowerShell/OpenSSH 组合执行内联命令正常，但读取 SSH 标准输入中的探测脚本会卡住。若 `pwsh.exe` 返回失败退出码，则回退到 Windows PowerShell 5.1；SSH 认证失败或超时不会触发这次回退。计划任务管理和 MCP 监听检查仍使用 `powershell.exe`。Agent 的 Shell 可以运行，并不代表所有适配器操作也已获准执行。
 
 1. 在本机分别测试基础 SSH 命令和无副作用的 Windows PowerShell 命令：
 

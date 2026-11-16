@@ -3,7 +3,10 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 
-export const psCommand=script=>'powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand '+Buffer.from(script,'utf16le').toString('base64');
+export const psCommand=(script,shell='powershell.exe')=>{
+  if(!['powershell.exe','pwsh.exe'].includes(shell))throw Error('Unsupported PowerShell executable');
+  return shell+' -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand '+Buffer.from(script,'utf16le').toString('base64');
+};
 const optionsWithValues=new Set(['B','b','c','D','E','e','F','I','i','J','L','l','m','O','o','P','p','Q','R','S','W','w']);
 // Probing/upload must not bind the App's reverse-forward port or consume its transport.
 export function maintenancePrefix(prefix) {
@@ -85,7 +88,13 @@ async function detectResolved(root,config,parsed,prefix,{fresh,run,resolved}) {
   const script=`$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';\n${discovery}\nif($env:OS -ne 'Windows_NT'){exit 87}; $result=Get-AdapterProbe; [Console]::WriteLine('CODEX_WINDOWS_PROBE:'+ [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($result | ConvertTo-Json -Depth 6 -Compress))))`;
   // Keep the remote command below cmd.exe's 8191-character limit.
   const loader="[Console]::InputEncoding=[Text.UTF8Encoding]::new($false); & ([scriptblock]::Create([Console]::In.ReadToEnd()))";
-  const result=await run(config,prefix,psCommand(loader),{input:Buffer.from(script)});
+  // Some Windows PowerShell/OpenSSH combinations hang while reading redirected
+  // stdin, even though inline commands work. Prefer PowerShell 7 for this loader.
+  // Keep 5.1-only hosts supported when pwsh exits unsuccessfully (e.g. missing).
+  // Authentication failures and timeouts must not trigger another SSH attempt.
+  let result=await run(config,prefix,psCommand(loader,'pwsh.exe'),{input:Buffer.from(script)});
+  if(Number.isInteger(result.code)&&result.code>0&&result.code!==255)
+    result=await run(config,prefix,psCommand(loader),{input:Buffer.from(script)});
   let probe=decodeProbe(result.stdout);
   if(!probe) {
     if(result.code===255)throw Error('SSH authentication or connection failed. Verify this host with system ssh first.');

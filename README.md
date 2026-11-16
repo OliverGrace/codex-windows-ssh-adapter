@@ -183,7 +183,7 @@ For Tailscale connections, first verify DNS resolution and system SSH access; `t
 
 Security software can block an adapter subprocess even when SSH login itself succeeds. In one deployment using 360 security software, `ssh ... hostname` worked while remote `powershell.exe` returned `Access is denied`. Host detection then reported `Cannot identify this SSH host as Windows or Unix`. After the blocked operation was allowed, Desktop reattached to the existing Codex process and disconnect/MCP tests passed. This is a diagnostic example, not proof that every access-denied error is caused by antivirus.
 
-The adapter uses Windows PowerShell (`powershell.exe`) for discovery, task management, and MCP listener checks. A working PowerShell 7 (`pwsh.exe`) agent shell does not establish that these adapter operations are allowed.
+Discovery prefers PowerShell 7 (`pwsh.exe`) because some Windows PowerShell/OpenSSH combinations hang while reading the probe script from SSH stdin, even though inline commands work. If `pwsh.exe` exits unsuccessfully, discovery falls back to Windows PowerShell 5.1; SSH authentication failures and timeouts are not retried this way. Task management and MCP listener checks still use `powershell.exe`. A working agent shell alone does not establish that all adapter operations are allowed.
 
 1. Compare a basic SSH command with a harmless Windows PowerShell command from the local computer:
 
