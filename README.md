@@ -162,6 +162,8 @@ node scripts/remote.mjs start windows-dev
 | Symptom | What to check |
 | --- | --- |
 | Launcher says Desktop is still running | It retries after 3 seconds; Enter/Y confirms force close, other input cancels. Finish local tasks before confirming. |
+| Both Windows hosts authenticate but reject `sh` or `[` | Check whether the local `bin/ssh.exe` disappeared. Fully quit Desktop and relaunch using the adapter shortcut. The launcher rebuilds a missing shim from this checkout, then checks that it resolves before starting Desktop. |
+| The in-app updater says `missing packaged Windows update configuration` | For a Store installation with this error, check for ChatGPT updates in Microsoft Store. See [OpenAI's app update documentation](https://learn.chatgpt.com/docs/enterprise/manage-app-updates). |
 | Version gate rejects Desktop | Review new App compatibility before changing the version setting. |
 | Host absent from SSH settings | Add a valid SSH config alias and verify system SSH access. |
 | Authentication or host-key failure | Fix the underlying SSH connection; checks are not bypassed. |

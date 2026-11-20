@@ -153,6 +153,8 @@ node scripts/remote.mjs start windows-dev
 | 问题 | 处理方式 |
 | --- | --- |
 | 提示 App 已运行 | 完整退出后再使用本项目启动器。 |
+| 两台 Windows 都能通过 SSH 认证，但提示找不到 `sh` 或 `[` | 检查本机 `bin/ssh.exe` 是否缺失。完全退出 App 后用适配器快捷方式重开，启动器会从当前仓库源码重建缺失的程序，并确认 App 将使用该适配器。 |
+| App 内提示 `missing packaged Windows update configuration` | 商店版遇到这个提示时，在 Microsoft Store 检查 ChatGPT 更新。参见 [OpenAI 的 App 更新文档](https://learn.chatgpt.com/docs/enterprise/manage-app-updates)。 |
 | App 版本不匹配 | 验证新版兼容性后再修改版本配置。 |
 | SSH 设置中没有主机 | 添加 SSH 别名，确认系统 SSH 可用。 |
 | 认证或主机密钥错误 | 修复原始 SSH 连接；检查不会被绕过。 |

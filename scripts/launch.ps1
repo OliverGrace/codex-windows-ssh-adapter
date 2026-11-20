@@ -2,6 +2,7 @@ param([switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
 $project = Split-Path -Parent $PSScriptRoot
 $bin = Join-Path $project 'bin'
+$adapter = Join-Path $bin 'ssh.exe'
 $config = Get-Content -LiteralPath (Join-Path $project 'adapter.config.json') -Raw | ConvertFrom-Json
 $package = Get-AppxPackage OpenAI.Codex | Sort-Object Version -Descending | Select-Object -First 1
 if (-not $package) { throw 'Codex desktop package not found.' }
@@ -10,7 +11,7 @@ $entry = $manifest.Package.Applications.Application | Where-Object Id -eq 'App' 
 if (-not $entry.Executable) { throw 'Codex desktop manifest entry not found.' }
 $executable = Join-Path $package.InstallLocation $entry.Executable
 if (-not (Test-Path -LiteralPath $executable)) { throw 'Codex executable not found.' }
-if (-not (Test-Path -LiteralPath (Join-Path $bin 'ssh.exe'))) { throw 'Run scripts\build.ps1 first.' }
+if ($CheckOnly -and -not (Test-Path -LiteralPath $adapter -PathType Leaf)) { throw 'The local SSH adapter is missing. Run scripts\build.ps1 or launch using the adapter shortcut.' }
 $runtime = Get-Content -LiteralPath (Join-Path $bin 'runtime.json') -Raw | ConvertFrom-Json
 if (-not (Test-Path -LiteralPath $runtime.node)) { throw 'Node runtime has moved; rebuild the launcher.' }
 if (-not (Test-Path -LiteralPath $config.realSsh)) { throw 'System OpenSSH executable not found.' }
@@ -27,6 +28,11 @@ if (-not $CheckOnly -and -not (Wait-AdapterDesktopExit -ExecutablePaths $desktop
     return
 }
 if(-not $CheckOnly) {
+    if (-not (Test-Path -LiteralPath $adapter -PathType Leaf)) {
+        Write-Output 'Local SSH adapter missing. Rebuilding it from this checkout...'
+        & (Join-Path $PSScriptRoot 'build.ps1')
+        if (-not (Test-Path -LiteralPath $adapter -PathType Leaf)) { throw 'The local SSH adapter is still missing after rebuilding.' }
+    }
     try { & (Join-Path $PSScriptRoot 'update-shortcut.ps1') -OnlyIfExists }
     catch { Write-Warning ("Cannot refresh shortcut icon: " + $_.Exception.Message) }
     & $runtime.node (Join-Path $PSScriptRoot 'prepare-package.mjs')
@@ -41,7 +47,7 @@ try {
     $env:PATH = "$bin;$oldPath"
     $env:CODEX_WINDOWS_SSH_AUTO = '1'
     $resolved = (Get-Command ssh.exe -ErrorAction Stop).Source
-    if ($resolved -ne (Join-Path $bin 'ssh.exe')) { throw 'The adapter was not selected by PATH.' }
+    if ($resolved -ne $adapter) { throw 'The adapter was not selected by PATH.' }
     if ($CheckOnly) {
         Write-Output "App: $executable"
         Write-Output "Adapter: $resolved"
