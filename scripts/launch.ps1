@@ -11,6 +11,15 @@ $entry = $manifest.Package.Applications.Application | Where-Object Id -eq 'App' 
 if (-not $entry.Executable) { throw 'Codex desktop manifest entry not found.' }
 $executable = Join-Path $package.InstallLocation $entry.Executable
 if (-not (Test-Path -LiteralPath $executable)) { throw 'Codex executable not found.' }
+# Launch through the package-specific execution alias so Windows gives Desktop
+# its package identity. Starting the executable directly loses that identity.
+$aliasNode = $entry.SelectSingleNode('./*[local-name()="Extensions"]/*[@Category="windows.appExecutionAlias" and not(@Executable)]//*[local-name()="ExecutionAlias"]')
+$aliasName = if ($aliasNode) { $aliasNode.GetAttribute('Alias') }
+if ($aliasName -notmatch '^[a-zA-Z0-9][a-zA-Z0-9._-]*\.exe$') { throw 'The Codex package does not declare an application execution alias.' }
+$appEntryPoint = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\$($package.PackageFamilyName)\$aliasName"
+if (-not (Test-Path -LiteralPath $appEntryPoint -PathType Leaf)) {
+    throw "The packaged Codex entry point is missing. Enable $aliasName in Windows Settings > Apps > Advanced app settings > App execution aliases."
+}
 if ($CheckOnly -and -not (Test-Path -LiteralPath $adapter -PathType Leaf)) { throw 'The local SSH adapter is missing. Run scripts\build.ps1 or launch using the adapter shortcut.' }
 $runtime = Get-Content -LiteralPath (Join-Path $bin 'runtime.json') -Raw | ConvertFrom-Json
 if (-not (Test-Path -LiteralPath $runtime.node)) { throw 'Node runtime has moved; rebuild the launcher.' }
@@ -50,14 +59,23 @@ try {
     if ($resolved -ne $adapter) { throw 'The adapter was not selected by PATH.' }
     if ($CheckOnly) {
         Write-Output "App: $executable"
+        Write-Output "Packaged entry point: $appEntryPoint"
         Write-Output "Adapter: $resolved"
         Write-Output 'Target: automatic Windows detection; Unix SSH passthrough'
         Write-Output "Existing desktop processes: $(@(Get-AdapterDesktopProcess -ExecutablePaths $desktopPaths).Count)"
         return
     }
-    # Start-Process normally inherits the caller's environment; never use -UseNewEnvironment.
-    $started = Start-Process -FilePath $executable -ArgumentList $launchUri -WorkingDirectory (Split-Path $executable) -PassThru
-    if ($started.WaitForExit(1500) -and $started.ExitCode -ne 0) { throw "Desktop startup failed with code $($started.ExitCode)." }
+    # Use CreateProcess through the execution alias, so the App receives both
+    # its package identity and the SSH environment inherited from this process.
+    $launch = New-Object System.Diagnostics.ProcessStartInfo
+    $launch.FileName = $appEntryPoint
+    $launch.Arguments = $launchUri
+    $launch.WorkingDirectory = Split-Path -Parent $executable
+    $launch.UseShellExecute = $false
+    $started = [System.Diagnostics.Process]::Start($launch)
+    try {
+        if ($started.WaitForExit(1500) -and $started.ExitCode -ne 0) { throw "Desktop startup failed with code $($started.ExitCode)." }
+    } finally { $started.Dispose() }
     # The App may recreate its Start Menu link after our pre-launch icon repair.
     # A hidden, bounded helper repairs it again without restarting Explorer/App.
     try {
