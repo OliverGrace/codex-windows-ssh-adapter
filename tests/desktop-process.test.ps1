@@ -79,6 +79,28 @@ try {
         Assert (-not (Test-AdapterUpdatedDesktopProcess $updated 1 $one $attempt)) 'Matched another executable'
         $updated.CommandLine = "`"$two`""
         Assert (-not (Test-AdapterUpdatedDesktopProcess $updated 1 $two $attempt)) 'Matched a normal launch'
+
+        # The Store can wait 40 seconds to register and start the replacement.
+        # Exercise the real watcher with a simulated clock and no App launch.
+        & {
+            $sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
+            $old = [pscustomobject]@{ SessionId = $sessionId; StartTime = $startedUtc }
+            $old | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value {}
+            $old | Add-Member -MemberType ScriptMethod -Name Dispose -Value {}
+            $updated.SessionId = $sessionId
+            $updated.CommandLine = "`"$two`" --codex-update-attempt=$attemptId"
+            $fixturePackage = [pscustomobject]@{ PackageFamilyName = $family; Version = [version]'26.1.2.0'; InstallLocation = $fixtureRoot }
+            [IO.File]::WriteAllText((Join-Path $fixtureRoot 'AppxManifest.xml'), '<Package><Applications><Application Id="App" Executable="two\AdapterExitFixture.exe" /></Applications></Package>')
+            $observed = @{ Seconds = 0; Launches = 0 }
+            function Get-Process { param($Id) $old }
+            function Get-AppxPackage { param($Name) if ($observed.Seconds -ge 40) { $fixturePackage } }
+            function Get-CimInstance { param($ClassName,$Filter) $updated }
+            function Start-Sleep { param($Seconds) $observed.Seconds += $Seconds }
+            function Start-Process { param($FilePath,$WindowStyle) $observed.Launches++ }
+            & (Join-Path $PSScriptRoot '..\scripts\watch-desktop-update.ps1') -ProcessId 123 `
+                -StartedTicks $startedUtc.Ticks -PackageFamily $family -SourceVersion $sourceVersion
+            Assert ($observed.Launches -eq 1 -and $observed.Seconds -eq 40) 'Missed the delayed Store update restart'
+        }
     } finally { $env:LOCALAPPDATA = $savedLocalAppData }
 } finally {
     foreach ($process in @($first,$second)) {

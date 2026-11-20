@@ -20,7 +20,9 @@ try {
 $attempt = Find-AdapterDesktopUpdateAttempt -ProcessId $ProcessId -StartedUtc $startedUtc `
     -PackageFamily $PackageFamily -SourceVersion $SourceVersion
 if (-not $attempt) { return }
-for ($i = 0; $i -lt 30; $i++) {
+# Store deployment can take longer than 30 seconds after the old App exits.
+# Only a recorded update gets this wait. Ordinary quits return immediately.
+for ($i = 0; $i -lt 90; $i++) {
     $package = Get-AppxPackage OpenAI.Codex | Where-Object PackageFamilyName -eq $PackageFamily |
         Sort-Object Version -Descending | Select-Object -First 1
     if ($package -and [version]$package.Version -gt $SourceVersion) {
@@ -39,5 +41,5 @@ for ($i = 0; $i -lt 30; $i++) {
             }
         }
     }
-    Start-Sleep -Seconds 1
+    Start-Sleep -Seconds 2
 }
