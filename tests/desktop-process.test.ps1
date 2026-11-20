@@ -52,6 +52,34 @@ try {
     Stop-AdapterDesktopProcess -ExecutablePaths @($one)
     Assert ($first.WaitForExit(5000)) 'Selected fixture did not stop'
     Assert (-not $second.HasExited) 'Unrelated same-name fixture was stopped'
+
+    $savedLocalAppData = $env:LOCALAPPDATA
+    try {
+        $env:LOCALAPPDATA = $fixtureRoot
+        $now = [datetime]::UtcNow
+        $startedUtc = $now.AddSeconds(-40)
+        $acceptedMs = ([DateTimeOffset]$now.AddSeconds(-2)).ToUnixTimeMilliseconds()
+        $dateFolder = $now.ToString('yyyy/MM/dd', [Globalization.CultureInfo]::InvariantCulture)
+        $logDirectory = Join-Path $fixtureRoot "Codex/Logs/$dateFolder"
+        New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
+        $family = 'OpenAI.Codex_fixture'
+        $sourceVersion = [version]'26.1.1.0'
+        $attemptId = [guid]::NewGuid().ToString()
+        $line = "$($now.ToString('o')) info [windows-updater] Windows update attempt acceptedAtMs=$acceptedMs attemptId=$attemptId family=$family from=$sourceVersion outcome=accepted trigger=user"
+        $logPath = Join-Path $logDirectory 'codex-desktop-test-123-t0-i1-123456-0.log'
+        [IO.File]::WriteAllText($logPath, $line)
+        $attempt = Find-AdapterDesktopUpdateAttempt 123 $startedUtc $family $sourceVersion
+        Assert ($attempt.Id -eq $attemptId) 'Did not recognize the accepted update for this process'
+        Assert (-not (Find-AdapterDesktopUpdateAttempt 124 $startedUtc $family $sourceVersion)) 'Matched a different App process'
+        Assert (-not (Find-AdapterDesktopUpdateAttempt 123 $now $family $sourceVersion)) 'Matched an attempt before this process started'
+        Assert (-not (Find-AdapterDesktopUpdateAttempt 123 $startedUtc $family ([version]'26.1.0.0'))) 'Matched an unrelated package version'
+        $updated = [pscustomobject]@{ SessionId = 1; ExecutablePath = $two; CreationDate = $now; CommandLine = "`"$two`" --codex-update-attempt=$attemptId" }
+        Assert (Test-AdapterUpdatedDesktopProcess $updated 1 $two $attempt) 'Missed the updater restart'
+        Assert (-not (Test-AdapterUpdatedDesktopProcess $updated 2 $two $attempt)) 'Matched another Windows session'
+        Assert (-not (Test-AdapterUpdatedDesktopProcess $updated 1 $one $attempt)) 'Matched another executable'
+        $updated.CommandLine = "`"$two`""
+        Assert (-not (Test-AdapterUpdatedDesktopProcess $updated 1 $two $attempt)) 'Matched a normal launch'
+    } finally { $env:LOCALAPPDATA = $savedLocalAppData }
 } finally {
     foreach ($process in @($first,$second)) {
         if ($null -ne $process) {

@@ -73,16 +73,25 @@ try {
     $launch.WorkingDirectory = Split-Path -Parent $executable
     $launch.UseShellExecute = $false
     $started = [System.Diagnostics.Process]::Start($launch)
+    $pwsh = Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'
+    $helperShell = if (Test-Path -LiteralPath $pwsh) { $pwsh } else { 'powershell.exe' }
     try {
-        if ($started.WaitForExit(1500) -and $started.ExitCode -ne 0) { throw "Desktop startup failed with code $($started.ExitCode)." }
+        if ($started.WaitForExit(1500)) {
+            if ($started.ExitCode -ne 0) { throw "Desktop startup failed with code $($started.ExitCode)." }
+        } else {
+            try {
+                $watchScript = Join-Path $PSScriptRoot 'watch-desktop-update.ps1'
+                $watchArgs = '-NoProfile -ExecutionPolicy Bypass -File "{0}" -ProcessId {1} -StartedTicks {2} -PackageFamily {3} -SourceVersion {4}' -f
+                    $watchScript, $started.Id, $started.StartTime.ToUniversalTime().Ticks, $package.PackageFamilyName, $package.Version
+                Start-Process -FilePath $helperShell -ArgumentList $watchArgs -WindowStyle Hidden -WorkingDirectory $project | Out-Null
+            } catch { Write-Warning ("Cannot watch for Desktop update restart: " + $_.Exception.Message) }
+        }
     } finally { $started.Dispose() }
     # The App may recreate its Start Menu link after our pre-launch icon repair.
     # A hidden, bounded helper repairs it again without restarting Explorer/App.
     try {
-        $pwsh = Join-Path $env:ProgramFiles 'PowerShell\7\pwsh.exe'
-        $iconShell = if (Test-Path -LiteralPath $pwsh) { $pwsh } else { 'powershell.exe' }
         $iconScript = Join-Path $PSScriptRoot 'refresh-taskbar-icon.ps1'
         $iconArgs = '-NoProfile -ExecutionPolicy Bypass -File "' + $iconScript + '" -WatchStartup'
-        Start-Process -FilePath $iconShell -ArgumentList $iconArgs -WindowStyle Hidden -WorkingDirectory $project | Out-Null
+        Start-Process -FilePath $helperShell -ArgumentList $iconArgs -WindowStyle Hidden -WorkingDirectory $project | Out-Null
     } catch { Write-Warning ("Cannot schedule taskbar icon refresh: " + $_.Exception.Message) }
 } finally { $env:PATH = $oldPath; $env:CODEX_WINDOWS_SSH_AUTO=$oldAuto }

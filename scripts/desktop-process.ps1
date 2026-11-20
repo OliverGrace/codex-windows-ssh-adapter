@@ -57,3 +57,34 @@ function Wait-AdapterDesktopExit {
     }
     throw 'Codex did not exit after force close. The launcher has not started another instance.'
 }
+
+function Find-AdapterDesktopUpdateAttempt {
+    param([int]$ProcessId, [datetime]$StartedUtc, [string]$PackageFamily, [version]$SourceVersion,
+        [string]$LogRoot = (Join-Path $env:LOCALAPPDATA 'Codex\Logs'))
+    $familyPattern = [regex]::Escape($PackageFamily)
+    $sourcePattern = [regex]::Escape($SourceVersion.ToString())
+    $guidPattern = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    $now = [datetime]::UtcNow
+    $directories = @($now, $now.AddDays(-1)) | ForEach-Object { Join-Path $LogRoot $_.ToString('yyyy/MM/dd', [Globalization.CultureInfo]::InvariantCulture) }
+    $files = Get-ChildItem -LiteralPath $directories -Filter "*-$ProcessId-t0-*.log" -File -ErrorAction SilentlyContinue |
+        Where-Object LastWriteTimeUtc -ge $StartedUtc | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 6
+    foreach ($file in $files) {
+        foreach ($line in (Get-Content -LiteralPath $file.FullName -Tail 1500 -ErrorAction SilentlyContinue)) {
+            if ($line -notmatch '^\S+ info \[windows-updater\] Windows update attempt ' -or
+                $line -notmatch "\bfamily=$familyPattern from=$sourcePattern outcome=accepted\b" -or
+                $line -notmatch "\bacceptedAtMs=(\d{13}) attemptId=($guidPattern)\b") { continue }
+            $acceptedUtc = [DateTimeOffset]::FromUnixTimeMilliseconds([long]$Matches[1]).UtcDateTime
+            if ($acceptedUtc -ge $StartedUtc -and $acceptedUtc -le $now) {
+                return [pscustomobject]@{ Id = $Matches[2]; AcceptedUtc = $acceptedUtc }
+            }
+        }
+    }
+}
+
+function Test-AdapterUpdatedDesktopProcess {
+    param($Process, [int]$SessionId, [string]$ExecutablePath, $Attempt)
+    $marker = [regex]::Escape('--codex-update-attempt=' + $Attempt.Id)
+    return $Process.SessionId -eq $SessionId -and $Process.ExecutablePath -eq $ExecutablePath -and
+        $Process.CreationDate -and $Process.CreationDate.ToUniversalTime() -ge $Attempt.AcceptedUtc -and
+        $Process.CommandLine -match ('(?:^|[\s"])' + $marker + '(?=$|[\s"])')
+}

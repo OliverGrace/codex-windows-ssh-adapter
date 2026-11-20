@@ -95,7 +95,12 @@ export function checkFormatter(wrap,bootstrapPrefix='') {
 }
 
 export function inspectSources(sources) {
-  const candidates=sources.filter(s=>s.source.includes('CODEX_REMOTE_PAYLOAD'));
+  const formatters=sources.filter(s=>s.source.includes('CODEX_REMOTE_PAYLOAD'));
+  // Newer builds duplicate the formatter in several processes. Prefer the
+  // bundle that also owns the SSH WebSocket bootstrap and transport logging.
+  const transportFormatters=formatters.filter(({source})=>
+    source.includes('CODEX_SSH_SKIP_APP_SERVER_BOOT')&&source.includes('ssh_websocket_v0.shell_env_load_completed'));
+  const candidates=transportFormatters.length?transportFormatters:formatters;
   if(candidates.length!==1)throw Error('Desktop SSH formatter bundle missing or ambiguous');
   for(const token of ['app-server proxy','CODEX_SSH_SKIP_APP_SERVER_BOOT','pkill -9'])
     if(!sources.some(s=>s.source.includes(token)))throw Error('Desktop SSH protocol signal missing: '+token);

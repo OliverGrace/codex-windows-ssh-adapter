@@ -45,6 +45,13 @@ test('changed envelopes, missing protocol signals and ambiguous formatters fail 
   assert.throws(()=>inspectSources([{name:'a.js',source:fixture()},{name:'b.js',source:fixture()},signals]),/ambiguous/);
   assert.throws(()=>inspect(fixture()+fixture({rename:'second'}).replaceAll('shellQuote','quote2').replaceAll('pathSetup','path2')),/ambiguous/);
 });
+test('split Desktop builds choose the SSH transport formatter over unrelated copies',()=>{
+  const unrelated={name:'other-worker.js',source:fixture({prefix:'PATH=/different; '})};
+  const transport={name:'ssh-worker.js',source:fixture()+signals.source+' ssh_websocket_v0.shell_env_load_completed'};
+  assert.equal(inspectSources([unrelated,transport]).formatterBundle,transport.name);
+  assert.throws(()=>inspectSources([unrelated,transport,{...transport,name:'second-transport.js'}]),/ambiguous/);
+  assert.throws(()=>inspectSources([unrelated,{...transport,source:transport.source.replace('export PATH;','export OTHER;')}]),/command changed/);
+});
 test('unknown dependencies and nonterminating formatters cannot start the App',()=>{
   assert.throws(()=>inspect(fixture().replace('lead+pathSetup+command','unavailable(lead)+pathSetup+command')),/dependency/);
   const wrap=extractFormatter('function hang(){while(true){};return "CODEX_REMOTE_PAYLOAD"}');

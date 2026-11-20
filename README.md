@@ -162,6 +162,7 @@ node scripts/remote.mjs start windows-dev
 | Symptom | What to check |
 | --- | --- |
 | Launcher says Desktop is still running | It retries after 3 seconds; Enter/Y confirms force close, other input cancels. Finish local tasks before confirming. |
+| An in-app update reopens Desktop without SSH | After an update started in SSH mode, the adapter opens its shortcut again when it detects the matching updater restart. If the updater's window is still running, press Enter/Y in the launcher to switch it back to SSH mode. Ordinary exits and launches from the default App entry point do not trigger this. |
 | Both Windows hosts authenticate but reject `sh` or `[` | Check whether the local `bin/ssh.exe` disappeared. Fully quit Desktop and relaunch using the adapter shortcut. The launcher rebuilds a missing shim from this checkout, then checks that it resolves before starting Desktop. |
 | The in-app updater says `missing packaged Windows update configuration` only when launched with the adapter | Fully quit Desktop and use the current adapter shortcut. It starts the App through the package's Windows execution alias so the updater can read the package identity. If Windows cannot find that entry point, enable the ChatGPT execution alias in Windows Settings. |
 | Version gate rejects Desktop | Review new App compatibility before changing the version setting. |

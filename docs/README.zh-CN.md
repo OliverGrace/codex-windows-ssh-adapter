@@ -153,6 +153,7 @@ node scripts/remote.mjs start windows-dev
 | 问题 | 处理方式 |
 | --- | --- |
 | 提示 App 已运行 | 完整退出后再使用本项目启动器。 |
+| App 更新重启后未加载 SSH | 从 SSH 入口启动的 App 更新后，如果适配器识别到对应的更新重启，会重新打开 SSH 启动器。若更新器打开的窗口仍在运行，按回车或 Y 确认切回 SSH。普通退出和从默认 App 入口启动都不会触发这个流程。 |
 | 两台 Windows 都能通过 SSH 认证，但提示找不到 `sh` 或 `[` | 检查本机 `bin/ssh.exe` 是否缺失。完全退出 App 后用适配器快捷方式重开，启动器会从当前仓库源码重建缺失的程序，并确认 App 将使用该适配器。 |
 | 只有从适配器入口启动时，App 内才提示 `missing packaged Windows update configuration` | 完全退出 App，再用最新版适配器快捷方式启动。它通过 Windows 注册的应用执行别名启动，保留内置更新器需要的安装包身份。如果找不到该入口，在 Windows 设置里启用 ChatGPT 的应用执行别名。 |
 | App 版本不匹配 | 验证新版兼容性后再修改版本配置。 |
