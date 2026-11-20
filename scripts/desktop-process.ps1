@@ -50,10 +50,11 @@ function Wait-AdapterDesktopExit {
         return $false
     }
     Stop-AdapterDesktopProcess -ExecutablePaths $ExecutablePaths
-    # Wait for the single-instance owner to disappear before launching again.
-    for ($attempt = 0; $attempt -lt 25; $attempt++) {
+    # Give the packaged App and its helpers up to 15 seconds to finish
+    # exiting before trying to acquire the single-instance lock again.
+    for ($attempt = 0; $attempt -le 75; $attempt++) {
         if (@(Get-AdapterDesktopProcess -ExecutablePaths $ExecutablePaths).Count -eq 0) { return $true }
-        Start-Sleep -Milliseconds 200
+        if ($attempt -lt 75) { Start-Sleep -Milliseconds 200 }
     }
     throw 'Codex did not exit after force close. The launcher has not started another instance.'
 }

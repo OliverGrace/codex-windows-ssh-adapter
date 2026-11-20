@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 function Assert($condition, $message) { if (-not $condition) { throw $message } }
 
 # Exercise retry/confirmation without sleeping or touching the running App.
-foreach ($scenario in @('absent','exiting','cancel','force','stuck')) {
+foreach ($scenario in @('absent','exiting','cancel','force','slow-force','stuck')) {
     & {
         $script:queries = 0
         $script:waits = @()
@@ -13,7 +13,8 @@ foreach ($scenario in @('absent','exiting','cancel','force','stuck')) {
             param($ExecutablePaths)
             $script:queries++
             if ($scenario -eq 'absent' -or ($scenario -eq 'exiting' -and $script:queries -gt 1) -or
-                ($scenario -eq 'force' -and $script:stops -gt 0)) { return }
+                ($scenario -eq 'force' -and $script:stops -gt 0) -or
+                ($scenario -eq 'slow-force' -and $script:stops -gt 0 -and $script:queries -gt 42)) { return }
             [pscustomobject]@{Id=123}
         }
         function Start-Sleep { param($Seconds,$Milliseconds) $script:waits += ($Seconds * 1000 + $Milliseconds) }
@@ -24,11 +25,12 @@ foreach ($scenario in @('absent','exiting','cancel','force','stuck')) {
         catch { if ($_.Exception.Message -notlike 'Codex did not exit*') { throw }; $failed = $true }
         Assert ($failed -eq ($scenario -eq 'stuck')) "Unexpected failure: $scenario"
         if (-not $failed) { Assert ($result -eq ($scenario -ne 'cancel')) "Unexpected result: $scenario" }
-        Assert ($script:prompts -eq [int]($scenario -in @('cancel','force','stuck'))) "Unexpected prompt: $scenario"
-        Assert ($script:stops -eq [int]($scenario -in @('force','stuck'))) "Unexpected force close: $scenario"
+        Assert ($script:prompts -eq [int]($scenario -in @('cancel','force','slow-force','stuck'))) "Unexpected prompt: $scenario"
+        Assert ($script:stops -eq [int]($scenario -in @('force','slow-force','stuck'))) "Unexpected force close: $scenario"
         if ($scenario -eq 'absent') { Assert ($script:waits.Count -eq 0) 'Unnecessary delay' }
         else { Assert ($script:waits[0] -eq 3000) 'Must retry once after 3 seconds' }
-        if ($scenario -eq 'stuck') { Assert ($script:waits.Count -eq 26) 'Exit wait must be bounded' }
+        if ($scenario -eq 'slow-force') { Assert ($script:waits.Count -eq 41) 'Missed a slow App exit' }
+        if ($scenario -eq 'stuck') { Assert ($script:waits.Count -eq 76) 'Exit wait must be bounded' }
     }
 }
 
